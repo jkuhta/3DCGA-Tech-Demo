@@ -14,7 +14,8 @@ DISABLE_WARNINGS_POP()
 
 
 // write image to a file
-void Image::writeBitmapToFile(const std::filesystem::path& filePath) {
+void Image::writeBitmapToFile(const std::filesystem::path& filePath)
+{
     std::string filePathString = filePath.string();
     stbi_write_bmp(filePathString.c_str(), width, height, channels, pixels.data());
 }
@@ -22,20 +23,20 @@ void Image::writeBitmapToFile(const std::filesystem::path& filePath) {
 // Image constructor, create image from file
 Image::Image(const std::filesystem::path& filePath)
 {
-	if (!std::filesystem::exists(filePath)) {
-		std::cerr << "Texture file " << filePath << " does not exist!" << std::endl;
-		throw std::exception();
-	}
+    if (!std::filesystem::exists(filePath)) {
+        std::cerr << "Texture file " << filePath << " does not exist!" << std::endl;
+        throw std::exception();
+    }
 
-	const auto filePathStr = filePath.string(); // Create l-value so c_str() is safe.
-	stbi_uc* stbPixels = stbi_load(filePathStr.c_str(), &width, &height, &channels, STBI_default);
+    const auto filePathStr = filePath.string(); // Create l-value so c_str() is safe.
+    stbi_uc* stbPixels = stbi_load(filePathStr.c_str(), &width, &height, &channels, STBI_default);
 
-	if (!stbPixels) {
-		std::cerr << "Failed to read texture " << filePath << " using stb_image.h" << std::endl;
-		throw std::exception();
-	}
+    if (!stbPixels) {
+        std::cerr << "Failed to read texture " << filePath << " using stb_image.h" << std::endl;
+        throw std::exception();
+    }
 
-	for (size_t i = 0UL; i < width * height * channels; i++) { pixels.emplace_back(stbPixels[i]); }
+    for (size_t i = 0UL; i < width * height * channels; i++) { pixels.emplace_back(stbPixels[i]); }
 
-	stbi_image_free(stbPixels);
+    stbi_image_free(stbPixels);
 }

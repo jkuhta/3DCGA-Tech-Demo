@@ -12,11 +12,11 @@ std::optional<std::filesystem::path> pickSaveFile(const char* pFilterList)
     const nfdresult_t result = NFD_SaveDialog(pFilterList, nullptr, &pOutPath);
 
     if (result == NFD_OKAY) {
-        std::filesystem::path outPath { pOutPath };
+        std::filesystem::path outPath{ pOutPath };
         free(pOutPath);
         return outPath;
     } else if (result != NFD_CANCEL) {
-        std::cerr << "Native file dialog error: " <<  NFD_GetError() << std::endl;
+        std::cerr << "Native file dialog error: " << NFD_GetError() << std::endl;
     }
 
     return {};
@@ -28,11 +28,11 @@ std::optional<std::filesystem::path> pickOpenFile(const char* pFilterList)
     const nfdresult_t result = NFD_OpenDialog(pFilterList, nullptr, &pOutPath);
 
     if (result == NFD_OKAY) {
-        std::filesystem::path outPath { pOutPath };
+        std::filesystem::path outPath{ pOutPath };
         free(pOutPath);
         return outPath;
     } else if (result != NFD_CANCEL) {
-        std::cerr << "Native file dialog error: " <<  NFD_GetError() << std::endl;
+        std::cerr << "Native file dialog error: " << NFD_GetError() << std::endl;
     }
 
     return {};

@@ -37,8 +37,7 @@ Window::Window(std::string_view title, const glm::ivec2& windowSize, OpenGLVersi
     if (m_presentable) {
         if (visible) {
             glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-        }
-        else {
+        } else {
             glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         }
 
@@ -80,7 +79,7 @@ Window::Window(std::string_view title, const glm::ivec2& windowSize, OpenGLVersi
     }
 
     // std::string_view does not guarantee that the string contains a terminator character.
-    const std::string titleString { title };
+    const std::string titleString{ title };
     m_pWindow = glfwCreateWindow(windowSize.x, windowSize.y, titleString.c_str(), nullptr, nullptr);
     if (m_pWindow == nullptr) {
         glfwTerminate();
@@ -138,21 +137,24 @@ Window::Window(std::string_view title, const glm::ivec2& windowSize, OpenGLVersi
                 std::cerr << "Could not initialize imgui" << std::endl;
                 exit(1);
             }
-        } break;
-        case OpenGLVersion::GL3: {
-        } break;
+        }
+        break;
+        case OpenGLVersion::GL3: {}
+        break;
         case OpenGLVersion::GL41: {
             if (!ImGui_ImplOpenGL3_Init()) {
                 std::cerr << "Could not initialize imgui" << std::endl;
                 exit(1);
             }
-        } break;
+        }
+        break;
         case OpenGLVersion::GL45: {
             if (!ImGui_ImplOpenGL3_Init()) {
                 std::cerr << "Could not initialize imgui" << std::endl;
                 exit(1);
             }
-        } break;
+        }
+        break;
         };
 
         glfwSetWindowUserPointer(m_pWindow, this);
@@ -172,15 +174,18 @@ Window::~Window()
         switch (m_glVersion) {
         case OpenGLVersion::GL2: {
             ImGui_ImplOpenGL2_Shutdown();
-        } break;
-        case OpenGLVersion::GL3: {
-        } break;
+        }
+        break;
+        case OpenGLVersion::GL3: {}
+        break;
         case OpenGLVersion::GL41: {
             ImGui_ImplOpenGL3_Shutdown();
-        } break;
+        }
+        break;
         case OpenGLVersion::GL45: {
             ImGui_ImplOpenGL3_Shutdown();
-        } break;
+        }
+        break;
         };
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
@@ -209,15 +214,18 @@ void Window::updateInput()
         switch (m_glVersion) {
         case OpenGLVersion::GL2: {
             ImGui_ImplOpenGL2_NewFrame();
-        } break;
-        case OpenGLVersion::GL3:{
-        } break;
+        }
+        break;
+        case OpenGLVersion::GL3: {}
+        break;
         case OpenGLVersion::GL41: {
             ImGui_ImplOpenGL3_NewFrame();
-        } break;
+        }
+        break;
         case OpenGLVersion::GL45: {
             ImGui_ImplOpenGL3_NewFrame();
-        } break;
+        }
+        break;
         };
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -233,15 +241,18 @@ void Window::swapBuffers()
         switch (m_glVersion) {
         case OpenGLVersion::GL2: {
             ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-        } break;
-        case OpenGLVersion::GL3: {
-        } break;
+        }
+        break;
+        case OpenGLVersion::GL3: {}
+        break;
         case OpenGLVersion::GL41: {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        } break;
+        }
+        break;
         case OpenGLVersion::GL45: {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        } break;
+        }
+        break;
         };
     }
 
@@ -249,30 +260,30 @@ void Window::swapBuffers()
 }
 
 
-void Window::renderToImage (const std::filesystem::path& filePath, const bool flipY) {
-        std::vector <GLubyte> pixels;
-        pixels.reserve (4 * m_windowSize.x * m_windowSize.y);
+void Window::renderToImage(const std::filesystem::path& filePath, const bool flipY)
+{
+    std::vector<GLubyte> pixels;
+    pixels.reserve(4 * m_windowSize.x * m_windowSize.y);
 
-        glReadPixels(0, 0, m_windowSize.x, m_windowSize.y, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    glReadPixels(0, 0, m_windowSize.x, m_windowSize.y, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
-        std::string filePathString = filePath.string();
+    std::string filePathString = filePath.string();
 
-        // flips Y axis
-        if (flipY) {
-            // swap entire lines (if height is odd will not touch middle line)
-            for(int line = 0; line != m_windowSize.y/2; ++line) {
-                   std::swap_ranges(pixels.begin() + 4 * m_windowSize.x * line,
-                    pixels.begin() + 4 * m_windowSize.x * (line + 1),
-                    pixels.begin() + 4 * m_windowSize.x * (m_windowSize.y - line - 1));
-            }
+    // flips Y axis
+    if (flipY) {
+        // swap entire lines (if height is odd will not touch middle line)
+        for (int line = 0; line != m_windowSize.y / 2; ++line) {
+            std::swap_ranges(pixels.begin() + 4 * m_windowSize.x * line,
+                pixels.begin() + 4 * m_windowSize.x * (line + 1),
+                pixels.begin() + 4 * m_windowSize.x * (m_windowSize.y - line - 1));
         }
+    }
 
-        if ((filePath.extension()).compare(".bmp") == 0) {
-            stbi_write_bmp(filePathString.c_str(), m_windowSize.x, m_windowSize.y, 4, pixels.data());
-        }
-        else if ((filePath.extension()).compare(".png") == 0) {
-            stbi_write_png(filePathString.c_str(), m_windowSize.x, m_windowSize.y, 4, pixels.data(), 4*m_windowSize.x);
-        }
+    if ((filePath.extension()).compare(".bmp") == 0) {
+        stbi_write_bmp(filePathString.c_str(), m_windowSize.x, m_windowSize.y, 4, pixels.data());
+    } else if ((filePath.extension()).compare(".png") == 0) {
+        stbi_write_png(filePathString.c_str(), m_windowSize.x, m_windowSize.y, 4, pixels.data(), 4 * m_windowSize.x);
+    }
 }
 
 
@@ -369,7 +380,7 @@ void Window::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 void Window::windowSizeCallback(GLFWwindow* window, int width, int height)
 {
     Window* pThisWindow = static_cast<Window*>(glfwGetWindowUserPointer(window));
-    pThisWindow->m_windowSize = glm::ivec2 { width, height };
+    pThisWindow->m_windowSize = glm::ivec2{ width, height };
 
     for (const auto& callback : pThisWindow->m_windowResizeCallbacks)
         callback(glm::ivec2(width, height));
@@ -434,7 +445,7 @@ glm::ivec2 Window::getWindowSize() const
 
 glm::ivec2 Window::getFrameBufferSize() const
 {
-    glm::ivec2 out {};
+    glm::ivec2 out{};
     glfwGetFramebufferSize(m_pWindow, &out.x, &out.y);
     return out;
 }

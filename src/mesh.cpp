@@ -6,12 +6,10 @@ DISABLE_WARNINGS_POP()
 #include <iostream>
 #include <vector>
 
-GPUMaterial::GPUMaterial(const Material& material) :
-    kd(material.kd),
-    ks(material.ks),
-    shininess(material.shininess),
-    transparency(material.transparency)
-{}
+GPUMaterial::GPUMaterial(const Material& material)
+    : kd(material.kd), ks(material.ks), shininess(material.shininess), transparency(material.transparency)
+{
+}
 
 GPUMesh::GPUMesh(const Mesh& cpuMesh)
 {
@@ -31,12 +29,16 @@ GPUMesh::GPUMesh(const Mesh& cpuMesh)
     // Create vertex buffer object (VBO)
     glGenBuffers(1, &m_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(cpuMesh.vertices.size() * sizeof(decltype(cpuMesh.vertices)::value_type)), cpuMesh.vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(cpuMesh.vertices.size() * sizeof(decltype(cpuMesh.vertices)::value_type)),
+                 cpuMesh.vertices.data(), GL_STATIC_DRAW);
 
     // Create index buffer object (IBO)
     glGenBuffers(1, &m_ibo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(cpuMesh.triangles.size() * sizeof(decltype(cpuMesh.triangles)::value_type)), cpuMesh.triangles.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(cpuMesh.triangles.size() * sizeof(decltype(cpuMesh.triangles)::value_type)),
+                 cpuMesh.triangles.data(), GL_STATIC_DRAW);
 
     // Tell OpenGL that we will be using vertex attributes 0, 1 and 2.
     glEnableVertexAttribArray(0);
@@ -71,15 +73,19 @@ GPUMesh& GPUMesh::operator=(GPUMesh&& other)
     return *this;
 }
 
-std::vector<GPUMesh> GPUMesh::loadMeshGPU(std::filesystem::path filePath, bool normalize) {
+std::vector<GPUMesh> GPUMesh::loadMeshGPU(std::filesystem::path filePath, bool normalize)
+{
     if (!std::filesystem::exists(filePath))
         throw MeshLoadingException(fmt::format("File {} does not exist", filePath.string().c_str()));
 
     // Generate GPU-side meshes for all sub-meshes
-    std::vector<Mesh> subMeshes = loadMesh(filePath, { .normalizeVertexPositions = normalize });
+    std::vector<Mesh>    subMeshes = loadMesh(filePath, {.normalizeVertexPositions = normalize});
     std::vector<GPUMesh> gpuMeshes;
-    for (const Mesh& mesh : subMeshes) { gpuMeshes.emplace_back(mesh); }
-    
+    for (const Mesh& mesh : subMeshes)
+    {
+        gpuMeshes.emplace_back(mesh);
+    }
+
     return gpuMeshes;
 }
 
@@ -93,7 +99,7 @@ void GPUMesh::draw(const Shader& drawingShader)
     // Bind material data uniform (we assume that the uniform buffer objects is always called 'Material')
     // Yes, we could define the binding inside the shader itself, but that would break on OpenGL versions below 4.2
     drawingShader.bindUniformBlock("Material", 0, m_uboMaterial);
-    
+
     // Draw the mesh's triangles
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, m_numIndices, GL_UNSIGNED_INT, nullptr);
@@ -102,19 +108,19 @@ void GPUMesh::draw(const Shader& drawingShader)
 void GPUMesh::moveInto(GPUMesh&& other)
 {
     freeGpuMemory();
-    m_numIndices = other.m_numIndices;
+    m_numIndices       = other.m_numIndices;
     m_hasTextureCoords = other.m_hasTextureCoords;
-    m_ibo = other.m_ibo;
-    m_vbo = other.m_vbo;
-    m_vao = other.m_vao;
-    m_uboMaterial = other.m_uboMaterial;
+    m_ibo              = other.m_ibo;
+    m_vbo              = other.m_vbo;
+    m_vao              = other.m_vao;
+    m_uboMaterial      = other.m_uboMaterial;
 
-    other.m_numIndices = 0;
+    other.m_numIndices       = 0;
     other.m_hasTextureCoords = other.m_hasTextureCoords;
-    other.m_ibo = INVALID;
-    other.m_vbo = INVALID;
-    other.m_vao = INVALID;
-    other.m_uboMaterial = INVALID;
+    other.m_ibo              = INVALID;
+    other.m_vbo              = INVALID;
+    other.m_vao              = INVALID;
+    other.m_uboMaterial      = INVALID;
 }
 
 void GPUMesh::freeGpuMemory()

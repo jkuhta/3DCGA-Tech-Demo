@@ -11,7 +11,7 @@ Texture::Texture(std::filesystem::path filePath)
 {
     // Load image from disk to CPU memory.
     // Image class is defined in <framework/image.h>
-    Image cpuTexture { filePath };
+    Image cpuTexture{filePath};
 
     // Create a texture on the GPU and bind it for parameter setting
     glGenTextures(1, &m_texture);
@@ -26,15 +26,19 @@ Texture::Texture(std::filesystem::path filePath)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Define GPU texture parameters and upload corresponding data based on number of image channels
-    switch (cpuTexture.channels) {
+    switch (cpuTexture.channels)
+    {
         case 1:
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, cpuTexture.width, cpuTexture.height, 0, GL_RED, GL_UNSIGNED_BYTE, cpuTexture.get_data());
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, cpuTexture.width, cpuTexture.height, 0, GL_RED, GL_UNSIGNED_BYTE,
+                         cpuTexture.get_data());
             break;
         case 3:
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, cpuTexture.width, cpuTexture.height, 0, GL_RGB, GL_UNSIGNED_BYTE, cpuTexture.get_data());
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, cpuTexture.width, cpuTexture.height, 0, GL_RGB, GL_UNSIGNED_BYTE,
+                         cpuTexture.get_data());
             break;
         case 4:
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cpuTexture.width, cpuTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, cpuTexture.get_data());
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cpuTexture.width, cpuTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                         cpuTexture.get_data());
             break;
         default:
             std::cerr << "Number of channels read for texture is not supported" << std::endl;
@@ -45,8 +49,7 @@ Texture::Texture(std::filesystem::path filePath)
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
-Texture::Texture(Texture&& other)
-    : m_texture(other.m_texture)
+Texture::Texture(Texture&& other) : m_texture(other.m_texture)
 {
     other.m_texture = INVALID;
 }
