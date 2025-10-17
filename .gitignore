@@ -1,0 +1,98 @@
+# ===============================
+#  C++ / OpenGL Project .gitignore
+# ===============================
+
+# --- Build directories ---
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+obj/
+lib/
+dist/
+
+# --- CMake ---
+CMakeFiles/
+CMakeCache.txt
+CMakeScripts/
+Testing/
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+_deps/
+
+# --- IDE / Editors ---
+# CLion
+.idea/
+# VS Code
+.vscode/
+# Visual Studio (if used)
+*.sln
+*.vcxproj*
+*.user
+*.opensdf
+*.sdf
+*.suo
+
+# --- OS Specific ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Logs and Temp files ---
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# --- Compiled object files ---
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# --- Shader binaries (if compiled) ---
+*.spv
+
+# --- External Dependencies ---
+external/**/build/
+external/**/bin/
+external/**/lib/
+
+# --- Python / Scripts (if used for assets/tools) ---
+__pycache__/
+*.pyc
+
+# --- Assets cache ---
+assets/cache/
+assets/generated/
+
+# --- Reports / Misc ---
+docs/screenshots/
+docs/videos/
+*.mp4
+*.avi
+*.mov
+*.zip
+
+# --- Backup ---
+*~
+*.old
+*.orig
