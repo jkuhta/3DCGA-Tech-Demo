@@ -49,6 +49,9 @@ class Application
 
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
 
+        Mesh planeMesh = createPlaneMesh(10.0f, 10.0f, 10);
+        m_meshes.emplace_back(planeMesh);
+
         try
         {
             ShaderBuilder defaultBuilder;
