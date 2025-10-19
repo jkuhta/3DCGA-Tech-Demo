@@ -54,7 +54,7 @@ class Application
                     onMouseReleased(button, mods);
             });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
+        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo.obj", true);
 
         Mesh planeMesh = createPlaneMesh(10.0f, 10.0f, 10);
         m_planeMesh    = GPUMesh(planeMesh);

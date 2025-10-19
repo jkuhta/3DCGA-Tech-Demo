@@ -62,6 +62,6 @@ Include citations or URLs for:
 - Third-party models, textures, or assets (with licenses)
 - Any code snippets or ideas adapted (clearly referenced)
 
-1. **Example**  
-   Mozilla Developer Network. Available at: [https://developer.mozilla.org/en-US/docs/Web/Events](https://developer.mozilla.org/en-US/docs/Web/Events)  
-
+[1] **UFO 3D Model**  
+Nieves, H. (2013). UFO 3D model. Available at: https://free3d.com/3d-model/ufo-21509.html  
+License: Free for personal and commercial use
