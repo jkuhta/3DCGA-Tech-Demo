@@ -4,6 +4,8 @@
 // Always include window first (because it includes glfw, which includes GL which needs to be included AFTER glew).
 // Can't wait for modules to fix this stuff...
 #include <framework/disable_all_warnings.h>
+
+#include "camera.h"
 DISABLE_WARNINGS_PUSH()
 #include <glad/glad.h>
 // Include glad before glfw3
@@ -26,7 +28,12 @@ class Application
    public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
-          m_texture(RESOURCE_ROOT "resources/checkerboard.png")
+          m_texture(RESOURCE_ROOT "resources/checkerboard.png"),
+          m_planeMesh(createPlaneMesh(20.0f, 20.0f, 10)),
+          m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
+          m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
+          m_activeCamera(&m_worldCamera)
+
     {
         m_window.registerKeyCallback(
             [this](int key, int scancode, int action, int mods)
@@ -50,7 +57,9 @@ class Application
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
 
         Mesh planeMesh = createPlaneMesh(10.0f, 10.0f, 10);
-        m_meshes.emplace_back(planeMesh);
+        m_planeMesh    = GPUMesh(planeMesh);
+
+        m_objectCamera.setFollowTarget(&m_meshPosition, glm::vec3(0.0f, 1.0f, 3.0f));
 
         try
         {
@@ -82,14 +91,33 @@ class Application
         while (!m_window.shouldClose())
         {
             // This is your game loop
-            // Put your real-time logic and rendering in here
+
             m_window.updateInput();
+
+            m_worldCamera.updateInput();
+
+            if (m_selectedViewpoint == 1)
+                updateObjectMovement();
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             ImGui::Begin("Window");
-            ImGui::InputInt("This is an integer input", &dummyInteger);
-            // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
-            ImGui::Text("Value is: %i", dummyInteger);  // Use C printf formatting rules (%i is a signed integer)
+
+            const char* viewpoints[] = {"World View", "Object View"};
+            ImGui::Combo("Viewpoint", &m_selectedViewpoint, viewpoints, 2);
+            if (m_selectedViewpoint == 0)
+            {
+                m_worldCamera.setUserInteraction(true);
+                m_objectCamera.setUserInteraction(false);
+                m_activeCamera = &m_worldCamera;
+            }
+            else
+            {
+                m_worldCamera.setUserInteraction(false);
+                m_objectCamera.setUserInteraction(true);
+                m_activeCamera = &m_objectCamera;
+            }
+
+            ImGui::Separator();
             ImGui::Checkbox("Use material if no texture", &m_useMaterial);
             ImGui::End();
 
@@ -100,19 +128,19 @@ class Application
             // ...
             glEnable(GL_DEPTH_TEST);
 
-            const glm::mat4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
-            // Normals should be transformed differently than positions (ignoring translations + dealing with scaling):
-            // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
-            const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+            glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
 
             for (GPUMesh& mesh : m_meshes)
             {
+                glm::mat4       modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
+                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * modelMatrix;
+                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+
                 m_defaultShader.bind();
                 glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(mvpMatrix));
-                // Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                // glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                // glm::value_ptr(m_modelMatrix));
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(modelMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
                 if (mesh.hasTextureCoords())
@@ -130,6 +158,27 @@ class Application
                 mesh.draw(m_defaultShader);
             }
 
+            // Render the main plane
+            {
+                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * m_modelMatrix;
+                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+
+                m_defaultShader.bind();
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(mvpMatrix));
+                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(normalModelMatrix));
+                glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+
+                {
+                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                }
+
+                m_planeMesh.draw(m_defaultShader);
+            }
+
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
@@ -138,7 +187,26 @@ class Application
     // In here you can handle key presses
     // key - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__keys.html
     // mods - Any modifier keys pressed, like shift or control
-    void onKeyPressed(int key, int mods) { std::cout << "Key pressed: " << key << std::endl; }
+    void onKeyPressed(int key, int mods)
+    {
+        std::cout << "Key pressed: " << key << std::endl;
+
+        // switch viewpoints
+        if (key == GLFW_KEY_1)
+        {
+            m_selectedViewpoint = 0;
+            m_worldCamera.setUserInteraction(true);
+            m_objectCamera.setUserInteraction(false);
+            m_activeCamera = &m_worldCamera;
+        }
+        else if (key == GLFW_KEY_2)
+        {
+            m_selectedViewpoint = 1;
+            m_worldCamera.setUserInteraction(false);
+            m_objectCamera.setUserInteraction(true);
+            m_activeCamera = &m_objectCamera;
+        }
+    }
 
     // In here you can handle key releases
     // key - Integer that corresponds to numbers in https://www.glfw.org/docs/latest/group__keys.html
@@ -161,6 +229,20 @@ class Application
     // mods - Any modifier buttons pressed
     void onMouseReleased(int button, int mods) { std::cout << "Released mouse button: " << button << std::endl; }
 
+    // Update object position
+    void updateObjectMovement()
+    {
+        constexpr float objectSpeed = 0.05f;
+        if (m_window.isKeyPressed(GLFW_KEY_W))
+            m_meshPosition.z -= objectSpeed;
+        if (m_window.isKeyPressed(GLFW_KEY_S))
+            m_meshPosition.z += objectSpeed;
+        if (m_window.isKeyPressed(GLFW_KEY_A))
+            m_meshPosition.x -= objectSpeed;
+        if (m_window.isKeyPressed(GLFW_KEY_D))
+            m_meshPosition.x += objectSpeed;
+    }
+
    private:
     Window m_window;
 
@@ -171,6 +253,15 @@ class Application
     std::vector<GPUMesh> m_meshes;
     Texture              m_texture;
     bool                 m_useMaterial{true};
+    glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
+
+    GPUMesh m_planeMesh;
+
+    // Viewpoints
+    Camera  m_worldCamera;
+    Camera  m_objectCamera;
+    Camera* m_activeCamera;
+    int     m_selectedViewpoint{0};  // 0 = World, 1 = Object
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
