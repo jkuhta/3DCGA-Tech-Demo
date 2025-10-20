@@ -109,10 +109,10 @@ class Application
 
             m_window.updateInput();
 
-            m_worldCamera.updateInput();
-
             if (m_selectedViewpoint == 1)
                 updateObjectMovement();
+
+            m_activeCamera->updateInput();
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             imgui();
@@ -123,6 +123,11 @@ class Application
 
             // ...
             glEnable(GL_DEPTH_TEST);
+
+            if (m_wire_frame_enabled)
+            {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
+            }
 
             glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
 
@@ -234,6 +239,11 @@ class Application
                 m_planeMesh.draw(m_defaultShader);
             }
 
+            // Disable wireframe rendering after loop
+            if (m_wire_frame_enabled)
+            {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
@@ -338,12 +348,15 @@ class Application
         ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
 
         ImGui::Separator();
+        ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
         ImGui::End();
     }
 
    private:
     Window m_window;
+
+    bool m_wire_frame_enabled = false;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
