@@ -6,6 +6,7 @@
 #include <framework/disable_all_warnings.h>
 
 #include "camera.h"
+#include "terrain.h"
 DISABLE_WARNINGS_PUSH()
 #include <glad/glad.h>
 // Include glad before glfw3
@@ -29,10 +30,10 @@ class Application
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
           m_texture(RESOURCE_ROOT "resources/checkerboard.png"),
-          m_planeMesh(createPlaneMesh(20.0f, 20.0f, 10)),
           m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
-          m_activeCamera(&m_worldCamera)
+          m_activeCamera(&m_worldCamera),
+          m_terrain(m_terrainParameters)
 
     {
         m_window.registerKeyCallback(
@@ -55,9 +56,6 @@ class Application
             });
 
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo.obj", true);
-
-        Mesh planeMesh = createPlaneMesh(10.0f, 10.0f, 10);
-        m_planeMesh    = GPUMesh(planeMesh);
 
         m_objectCamera.setFollowTarget(&m_meshPosition, glm::vec3(0.0f, 1.0f, 3.0f));
 
@@ -113,6 +111,8 @@ class Application
                 updateObjectMovement();
 
             m_activeCamera->updateInput();
+
+            m_terrain.update(m_activeCamera->cameraPos());
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             imgui();
@@ -218,7 +218,7 @@ class Application
                 mesh.draw(m_defaultShader);
             }
 
-            // Render the main plane
+            // Render the terrain
             {
                 const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * m_modelMatrix;
                 const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
@@ -228,6 +228,8 @@ class Application
                                    glm::value_ptr(mvpMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(m_modelMatrix));
                 glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                 glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
 
@@ -236,7 +238,7 @@ class Application
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
 
-                m_planeMesh.draw(m_defaultShader);
+                m_terrain.render(m_defaultShader);
             }
 
             // Disable wireframe rendering after loop
@@ -348,15 +350,24 @@ class Application
         ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
 
         ImGui::Separator();
+        ImGui::Text("Terrain");
         ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+
+        ImGui::SliderFloat("Tile Size", &m_terrainParameters.tileSize, 1.0f, 50.0f);
+        ImGui::SliderInt("Subdivisions", &m_terrainParameters.subdivisions, 1, 10);
+        ImGui::SliderInt("Render Distance", &m_terrainParameters.renderDistance, 1, 10);
+        if (ImGui::Button("Regenerate Terrain"))
+        {
+            m_terrain.setParameters(m_terrainParameters);
+        }
         ImGui::End();
     }
 
    private:
     Window m_window;
 
-    bool m_wire_frame_enabled = false;
+    bool m_wire_frame_enabled = true;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
@@ -368,8 +379,6 @@ class Application
     Texture              m_texture;
     bool                 m_useMaterial{true};
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
-
-    GPUMesh m_planeMesh;
 
     // Lights
     struct Light
@@ -385,6 +394,9 @@ class Application
     Camera  m_objectCamera;
     Camera* m_activeCamera;
     int     m_selectedViewpoint{0};  // 0 = World, 1 = Object
+
+    TerrainParameters m_terrainParameters{100, 50.0f, 5};
+    Terrain           m_terrain;
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
