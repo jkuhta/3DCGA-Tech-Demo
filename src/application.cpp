@@ -29,7 +29,7 @@ class Application
    public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
-          m_texture(RESOURCE_ROOT "resources/checkerboard.png"),
+          m_texture(RESOURCE_ROOT "resources/moon.png"),
           m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
           m_activeCamera(&m_worldCamera),
@@ -233,6 +233,14 @@ class Application
                 glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                 glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
 
+                if (m_useTexture)
+                {
+                    m_texture.bind(GL_TEXTURE0);
+                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+                else
                 {
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
@@ -352,11 +360,14 @@ class Application
         ImGui::Separator();
         ImGui::Text("Terrain");
         ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
+        ImGui::Checkbox("Use Texture", &m_useTexture);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
 
         ImGui::SliderFloat("Tile Size", &m_terrainParameters.tileSize, 1.0f, 50.0f);
         ImGui::SliderInt("Subdivisions", &m_terrainParameters.subdivisions, 1, 10);
         ImGui::SliderInt("Render Distance", &m_terrainParameters.renderDistance, 1, 10);
+        ImGui::SliderFloat("Texture Scale", &m_terrainParameters.textureScale, 1.0f, 100.0f);  // Add this
+
         if (ImGui::Button("Regenerate Terrain"))
         {
             m_terrain.setParameters(m_terrainParameters);
@@ -368,6 +379,7 @@ class Application
     Window m_window;
 
     bool m_wire_frame_enabled = true;
+    bool m_useTexture         = true;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;

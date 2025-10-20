@@ -11,6 +11,7 @@ class TerrainParameters
     int   subdivisions   = 100;
     float tileSize       = 50.0f;
     int   renderDistance = 3;
+    float textureScale   = 10.0f;
 };
 
 class Terrain
@@ -27,6 +28,7 @@ class Terrain
     int   m_subdivisions;
     float m_tileSize;
     int   m_renderDistance;
+    float m_textureScale;
     bool  m_generated = false;
 
     std::map<std::pair<int, int>, std::unique_ptr<GPUMesh>> m_tiles;

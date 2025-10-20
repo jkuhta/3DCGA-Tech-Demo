@@ -3,7 +3,11 @@
 #include <iostream>
 
 Terrain::Terrain(TerrainParameters params)
-    : m_subdivisions(params.subdivisions), m_tileSize(params.tileSize), m_renderDistance(params.renderDistance)
+    : m_subdivisions(params.subdivisions),
+      m_tileSize(params.tileSize),
+      m_renderDistance(params.renderDistance),
+      m_textureScale(params.textureScale)
+
 {
 }
 
@@ -12,7 +16,6 @@ void Terrain::update(const glm::vec3& cameraPos)
     int cameraX = int(floor(cameraPos.x / m_tileSize));
     int cameraZ = int(floor(cameraPos.z / m_tileSize));
 
-    std::cout << "m_generated: " << m_generated << m_renderDistance << std::endl;
     if (!m_generated || m_tiles.empty() || cameraX != m_lastCameraX || cameraZ != m_lastCameraZ)
     {
         loadTiles(cameraX, cameraZ);
@@ -36,6 +39,7 @@ void Terrain::setParameters(TerrainParameters params)
     m_subdivisions   = params.subdivisions;
     m_tileSize       = params.tileSize;
     m_renderDistance = params.renderDistance;
+    m_textureScale   = params.textureScale;
     m_generated      = false;
     m_tiles.clear();
 }
@@ -54,9 +58,13 @@ GPUMesh Terrain::createTileMesh(int gridX, int gridZ)
         for (int x = 0; x < m_subdivisions; x++)
         {
             Vertex v;
-            v.position = glm::vec3(offsetX + x * step, 0.0f, offsetZ + z * step);
-            v.normal   = glm::vec3(0.0f, 1.0f, 0.0f);
-            v.texCoord = glm::vec2(float(x) / (m_subdivisions - 1), float(z) / (m_subdivisions - 1));
+            float  worldX = offsetX + x * step;
+            float  worldZ = offsetZ + z * step;
+            v.position    = glm::vec3(worldX, 0.0f, worldZ);
+            v.normal      = glm::vec3(0.0f, 1.0f, 0.0f);
+
+            v.texCoord = glm::vec2(worldX / m_textureScale, worldZ / m_textureScale);
+
             mesh.vertices.push_back(v);
         }
     }

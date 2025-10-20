@@ -18,8 +18,8 @@ Texture::Texture(std::filesystem::path filePath)
     glBindTexture(GL_TEXTURE_2D, m_texture);
 
     // Set behavior for when texture coordinates are outside the [0, 1] range (wrap around).
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 
     // Set interpolation for texture sampling (bilinear interpolation across mip-maps).
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
