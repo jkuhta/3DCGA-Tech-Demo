@@ -151,10 +151,14 @@ class Application
                 glUniformMatrix3fv(typeShader->getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
 
+                const Light& L = m_lights[0];
+                glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+                glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+
                 switch (m_shadingMode)
                 {
                     case 0:
-                    {  // Unlit
+                    {  // Default
                         if (mesh.hasTextureCoords())
                         {
                             m_texture.bind(GL_TEXTURE0);
@@ -171,33 +175,27 @@ class Application
                     }
                     case 1:
                     {  // Lambert
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
                         glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
                         break;
                     }
                     case 2:
                     {  // Phong
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
                         glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
                         glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
                         glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
                         glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
                                      glm::value_ptr(m_activeCamera->cameraPos()));
+                        glUniform1i(typeShader->getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
                         break;
                     }
                     case 3:
-                    {  // Blinn
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+                    {  // Blinn-phong
                         glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
                         glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
                         glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
                                      glm::value_ptr(m_activeCamera->cameraPos()));
+                        glUniform1i(typeShader->getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
                         break;
                     }
                     default:
@@ -350,6 +348,7 @@ class Application
         ImGui::ColorEdit3("Light color", &L.color[0]);
         ImGui::Separator();
         ImGui::Combo("Shading", &m_shadingMode, modes, 4);
+        ImGui::Checkbox("Add Lambert in Phong/Blinn", &m_useDiffuseInSpecular);
         ImGui::ColorEdit3("Kd", &shadingData.kd[0]);
         ImGui::ColorEdit3("Ks", &shadingData.ks[0]);
         ImGui::SliderFloat("Shininess", &shadingData.shininess, 1.0f, 128.0f);
@@ -376,8 +375,9 @@ class Application
    private:
     Window m_window;
 
-    bool m_wire_frame_enabled = false;
-    bool m_useTexture         = true;
+    bool m_wire_frame_enabled   = false;
+    bool m_useTexture           = true;
+    bool m_useDiffuseInSpecular = false;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;

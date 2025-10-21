@@ -6,21 +6,28 @@ uniform vec3 lightPos, lightColor;
 uniform vec3 kd, ks;
 uniform float shininess;
 uniform vec3 viewPos;
+uniform bool useDiffuse;   
 
 out vec4 outColor;
 
-void main(){
+void main() {
     vec3 N = normalize(fragNormal);
     vec3 L = normalize(lightPos - fragPosition);
-    vec3 V = normalize(viewPos  - fragPosition);
-    vec3 R = reflect(-L, N);
+    vec3 V = normalize(viewPos - fragPosition);
 
-    float NdotL = max(dot(N,L), 0.0);
-    vec3  diff  = kd * NdotL;
+    float NdL = max(dot(N, L), 0.0);
+    vec3 color = vec3(0.0);
 
-    float spec = (NdotL > 0.0) ? pow(max(dot(R,V),0.0), shininess) : 0.0;
-    vec3  specCol = ks * spec;
+    if (useDiffuse)
+        color += kd * NdL;
 
-    vec3 color = lightColor * (diff + specCol);
+    if (NdL > 0.0) {
+        vec3 R = reflect(-L, N);
+        float RdV = max(dot(R, V), 0.0);
+        color += ks * pow(RdV, shininess);
+    }
+
+    color *= lightColor;
     outColor = vec4(color, 1.0);
 }
+
