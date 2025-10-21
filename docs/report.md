@@ -9,12 +9,13 @@
 
 ## Group Members and Work Division
 
-| Student Name      | Implemented Features  | Percentage Indication per Feature |
-|-------------------|-----------------------|-----------------------------------|
-| Darian Samsoedien | - Example Feature 1   | 5%                                |
-|                   | - Example Feature 2   | 5%                                |
-| Jan Kuhta         | - Multiple viewpoints | 5%                                |
-|                   | - Example Feature 2   | 5%                                |
+| Student Name      | Implemented Features   | Percentage Indication per Feature |
+| ----------------- | ---------------------- | --------------------------------- |
+| Darian Samsoedien | - Basic Shading        | 5%                                |
+|                   | - Material textures UI | 5%                                |
+|                   | - Light added          | 1%                                |
+| Jan Kuhta         | - Multiple viewpoints  | 5%                                |
+|                   | - Example Feature 2    | 5%                                |
 
 ---
 
@@ -28,9 +29,12 @@ animation, and procedural effects.
 
 Below is an overview of all implemented features and where they can be toggled in the UI.
 
-| ID | Feature             | Description                                   | ImgUi               | Hotkey | Time spent |
-|----|---------------------|-----------------------------------------------|---------------------|--------|------------|
-| F1 | Multiple viewpoints | Switching between world view and object view. | Dropdown: Viewpoint | 1/2    | 3h         |
+| ID  | Feature             | Description                                   | ImgUi                | Hotkey  | Time spent |
+| --- | ------------------- | --------------------------------------------- | -------------------- | ------- | ---------- |
+| F1  | Multiple viewpoints | Switching between world view and object view. | Dropdown: Viewpoint  | 1/2     | 3h         |
+| F2  | Basic shading:      | Diffuse-only per-fragment shading (uses Kd).  | Dropdown: Shading    | 3/4/5/6 | 2h         |
+| F3  | Material controls   | Kd,Ks,Shininess,Roughness                     | Colorpickers,sliders | —       | 0.5h       |
+| F4  | One point light     | Editable position and color                   | Sliders              | —       | 0.5h       |
 
 ### F1. Multiple viewpoints
 
@@ -49,6 +53,30 @@ follows the object from behind with the same offset. Switching between cameras w
 setUserInteraction() is called accordingly to choose the active camera. Active camera is then used to calculate the
 view matrix which is passed to the shaders.
 
+### F2. Basic shading
+
+Implements three basic shading models: **Lambert**, **Phong**, **Blinn–Phong**.  
+I reused code I wrote in Exercise 3 to implement this, utilizing the shader files and shader bindings in main.cpp.
+
+**UI:** Dropdown **Shading** → Default / Lambert / Phong / Blinn-Phong  
+**Hotkeys:** 3 = Default 4 = Lambert, 5 = Phong, 6 = Blinn-Phong
+
+### F3. Material controls
+
+Editable **Kd**, **Ks**, **Shininess**, **Roughness**.
+The shadingModes struct was reused from excerice 3, and the values are editable by the gui.
+
+**UI:** Color pickers **Kd**, **Ks**; sliders **Shininess**, **Roughness**  
+**Hotkeys:** —
+
+### F4. Added light
+
+Single point light used by all basic shading modes. Position and color are editable.
+
+**UI:** **Light pos** (DragFloat3), **Light color** (ColorEdit3)  
+**Hotkeys:** —  
+**Implementation notes:**
+
 TODO: add screenshots
 
 ---
@@ -56,6 +84,7 @@ TODO: add screenshots
 ## Demo Video
 
 **Video link:** [Add Google Drive link]
+
 > The demo video provides an overview of all implemented techniques and UI toggles.  
 > Duration: ≤ 5 minutes.  
 > Commentary explains each feature as it is shown.

@@ -325,7 +325,7 @@ class Application
             m_activeCamera = &m_objectCamera;
         }
         ImGui::Separator();
-        const char* modes[] = {"Unlit", "Lambert", "Phong", "Blinn-Phong"};
+        const char* modes[] = {"Default", "Lambert", "Phong", "Blinn-Phong"};
 
         auto& L = m_lights[m_selectedLight];  // one light for now
         ImGui::DragFloat3("Light pos", &L.position[0], 0.05f);
