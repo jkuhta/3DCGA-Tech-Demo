@@ -57,7 +57,7 @@ class Application
 
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo.obj", true);
 
-        m_objectCamera.setFollowTarget(&m_meshPosition, glm::vec3(0.0f, 1.0f, 3.0f));
+        m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
         try
         {
@@ -133,8 +133,9 @@ class Application
 
             for (GPUMesh& mesh : m_meshes)
             {
-                glm::mat4       modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
-                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * modelMatrix;
+                glm::mat4 modelMatrix     = glm::translate(m_modelMatrix, m_meshPosition);
+                modelMatrix               = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+                const glm::mat4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
                 const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
                 Shader* typeShader = (m_shadingMode == 0)   ? &m_defaultShader
@@ -316,14 +317,18 @@ class Application
     void updateObjectMovement()
     {
         constexpr float objectSpeed = 0.05f;
+        constexpr float rotateSpeed = 0.01f;
+
+        glm::vec3 forward = glm::vec3(sin(m_meshRotation.y), 0.0f, cos(m_meshRotation.y));
+
         if (m_window.isKeyPressed(GLFW_KEY_W))
-            m_meshPosition.z -= objectSpeed;
+            m_meshPosition += forward * objectSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_S))
-            m_meshPosition.z += objectSpeed;
+            m_meshPosition -= forward * objectSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_A))
-            m_meshPosition.x -= objectSpeed;
+            m_meshRotation.y += rotateSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_D))
-            m_meshPosition.x += objectSpeed;
+            m_meshRotation.y -= rotateSpeed;
     }
 
     void imgui()
@@ -391,6 +396,7 @@ class Application
     Texture              m_texture;
     bool                 m_useMaterial{true};
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
+    glm::vec3            m_meshRotation{0.0f, 0.0f, 0.0f};
 
     // Lights
     struct Light

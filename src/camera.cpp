@@ -28,17 +28,13 @@ glm::vec3 Camera::cameraPos() const
 
 glm::mat4 Camera::viewMatrix() const
 {
-    if (m_followTarget)
-    {
-        return glm::lookAt(m_position, *m_followTarget, m_up);
-    }
     return glm::lookAt(m_position, m_position + m_forward, m_up);
 }
 
-void Camera::setFollowTarget(const glm::vec3* target, const glm::vec3& offset)
+void Camera::setFollowTarget(const glm::vec3* targetPos, const glm::vec3* targetRot)
 {
-    m_followTarget = target;
-    m_followOffset = offset;
+    m_followTargetPos = targetPos;
+    m_followTargetRot = targetRot;
 }
 
 void Camera::rotateX(float angle)
@@ -64,9 +60,18 @@ void Camera::updateInput()
 
     if (m_userInteraction)
     {
-        if (m_followTarget)
+        if (m_followTargetPos)
         {
-            m_position = *m_followTarget + m_followOffset;
+            float distanceBehindObject = 3.0f;
+            float distanceAboveObject  = 1.0f;
+
+            // Fixate camera position {cameraDistance} behind and {cameraHeight} above the object
+            glm::vec3 offset = glm::vec3(-sin(m_followTargetRot->y) * distanceBehindObject, distanceAboveObject,
+                                         -cos(m_followTargetRot->y) * distanceBehindObject);
+            m_position       = *m_followTargetPos + offset;
+
+            // Make camera look at the object
+            m_forward = glm::normalize(*m_followTargetPos - m_position);
         }
         else
         {
