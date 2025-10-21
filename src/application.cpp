@@ -71,20 +71,10 @@ class Application
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
-            ShaderBuilder lambertBuilder;
-            lambertBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            lambertBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/lambert_frag.glsl");
-            m_lambert = lambertBuilder.build();
-
-            ShaderBuilder phongBuilder;
-            phongBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            phongBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/phong_frag.glsl");
-            m_phong = phongBuilder.build();
-
-            ShaderBuilder blinnbuilder;
-            blinnbuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            blinnbuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/blinn_phong_frag.glsl");
-            m_blinn = blinnbuilder.build();
+            ShaderBuilder litBuilder;
+            litBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            litBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_lit_frag.glsl");
+            m_lit = litBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
@@ -130,7 +120,6 @@ class Application
             }
 
             glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
-            Shader&   typeShader = pickShader();
 
             // Render all meshes
             for (GPUMesh& mesh : m_meshes)
@@ -140,29 +129,28 @@ class Application
                 glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
                 glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                bindAndSetup(typeShader, mvpMatrix, modelMatrix, normalModelMatrix);
-                setShadingUniforms(typeShader, m_shadingMode);
+                bindAndSetup(m_lit, mvpMatrix, modelMatrix, normalModelMatrix);
+                setShadingUniforms(m_lit, m_shadingMode);
 
-                glUniformMatrix4fv(typeShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(modelMatrix));
-                glUniformMatrix4fv(typeShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                glUniformMatrix3fv(typeShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                glUniformMatrix4fv(m_lit.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+                glUniformMatrix4fv(m_lit.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+                glUniformMatrix3fv(m_lit.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
 
                 if (mesh.hasTextureCoords())
                 {
                     m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(typeShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    glUniform1i(m_lit.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_lit.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_lit.getUniformLocation("useMaterial"), GL_FALSE);
                 }
                 else
                 {
-                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    glUniform1i(m_lit.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_lit.getUniformLocation("useMaterial"), GL_FALSE);
                 }
 
-                mesh.draw(typeShader);
+                mesh.draw(m_lit);
             }
 
             // Render terrain
@@ -171,29 +159,28 @@ class Application
                 glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
                 glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                bindAndSetup(typeShader, mvpMatrix, modelMatrix, normalModelMatrix);
-                setShadingUniforms(typeShader, m_shadingMode);
+                bindAndSetup(m_lit, mvpMatrix, modelMatrix, normalModelMatrix);
+                setShadingUniforms(m_lit, m_shadingMode);
 
-                glUniformMatrix4fv(typeShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(modelMatrix));
-                glUniformMatrix4fv(typeShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                glUniformMatrix3fv(typeShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                glUniformMatrix4fv(m_lit.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+                glUniformMatrix4fv(m_lit.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+                glUniformMatrix3fv(m_lit.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
 
                 if (m_useTexture)
                 {
                     m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(typeShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    glUniform1i(m_lit.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_lit.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_lit.getUniformLocation("useMaterial"), GL_FALSE);
                 }
                 else
                 {
-                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(typeShader.getUniformLocation("useMaterial"), m_useMaterial);
+                    glUniform1i(m_lit.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_lit.getUniformLocation("useMaterial"), m_useMaterial);
                 }
 
-                m_terrain.render(typeShader);
+                m_terrain.render(m_lit);
             }
 
             // Disable wireframe rendering after loop
@@ -341,36 +328,12 @@ class Application
 
     void setShadingUniforms(Shader& sh, int mode)
     {
-        switch (mode)
-        {
-            case 1:  // Lambert
-                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                break;
-            case 2:  // Phong
-                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                glUniform3fv(sh.getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                glUniform1f(sh.getUniformLocation("shininess"), shadingData.shininess);
-                glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
-                glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
-                break;
-            case 3:  // Blinn phong
-                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                glUniform3fv(sh.getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                glUniform1f(sh.getUniformLocation("shininess"), shadingData.shininess);
-                glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
-                glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
-                break;
-            default:
-                break;  // Default
-        }
-    }
-
-    Shader& pickShader()
-    {
-        return (m_shadingMode == 0)   ? m_defaultShader
-               : (m_shadingMode == 1) ? m_lambert
-               : (m_shadingMode == 2) ? m_phong
-                                      : m_blinn;
+        glUniform1i(sh.getUniformLocation("shadingMode"), mode);  // 0..3
+        glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+        glUniform3fv(sh.getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+        glUniform1f(sh.getUniformLocation("shininess"), shadingData.shininess);
+        glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
+        glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
     }
 
    private:
@@ -383,7 +346,7 @@ class Application
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
-    Shader m_lambert, m_phong, m_blinn;
+    Shader m_lit;
     int    m_shadingMode = 1;
 
     std::vector<GPUMesh> m_meshes;
