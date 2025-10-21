@@ -130,115 +130,70 @@ class Application
             }
 
             glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
+            Shader&   typeShader = pickShader();
 
+            // Render all meshes
             for (GPUMesh& mesh : m_meshes)
             {
-                glm::mat4 modelMatrix     = glm::translate(m_modelMatrix, m_meshPosition);
-                modelMatrix               = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-                const glm::mat4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
-                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+                glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
+                modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                Shader* typeShader = (m_shadingMode == 0)   ? &m_defaultShader
-                                     : (m_shadingMode == 1) ? &m_lambert
-                                     : (m_shadingMode == 2) ? &m_phong
-                                                            : &m_blinn;
+                bindAndSetup(typeShader, mvpMatrix, modelMatrix, normalModelMatrix);
+                setShadingUniforms(typeShader, m_shadingMode);
 
-                typeShader->bind();
-
-                glUniformMatrix4fv(typeShader->getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                glUniformMatrix4fv(typeShader->getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                glUniformMatrix4fv(typeShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(modelMatrix));
-                glUniformMatrix3fv(typeShader->getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                glUniformMatrix4fv(typeShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+                glUniformMatrix3fv(typeShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
-
-                const Light& L = m_lights[0];
-                glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
-
-                switch (m_shadingMode)
-                {
-                    case 0:
-                    {  // Default
-                        if (mesh.hasTextureCoords())
-                        {
-                            m_texture.bind(GL_TEXTURE0);
-                            glUniform1i(typeShader->getUniformLocation("colorMap"), 0);
-                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_TRUE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
-                        }
-                        else
-                        {
-                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_FALSE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
-                        }
-                        break;
-                    }
-                    case 1:
-                    {  // Lambert
-                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                        break;
-                    }
-                    case 2:
-                    {  // Phong
-                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
-                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
-                                     glm::value_ptr(m_activeCamera->cameraPos()));
-                        glUniform1i(typeShader->getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
-                        break;
-                    }
-                    case 3:
-                    {  // Blinn-phong
-                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
-                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
-                                     glm::value_ptr(m_activeCamera->cameraPos()));
-                        glUniform1i(typeShader->getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
-                        break;
-                    }
-                    default:
-                        break;
-                }
 
                 if (mesh.hasTextureCoords())
                 {
                     m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    glUniform1i(typeShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
-                mesh.draw(m_defaultShader);
+                else
+                {
+                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+
+                mesh.draw(typeShader);
             }
 
-            // Render the terrain
+            // Render terrain
             {
-                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * m_modelMatrix;
-                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+                glm::mat4 modelMatrix       = m_modelMatrix;
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(mvpMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                bindAndSetup(typeShader, mvpMatrix, modelMatrix, normalModelMatrix);
+                setShadingUniforms(typeShader, m_shadingMode);
+
+                glUniformMatrix4fv(typeShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(modelMatrix));
+                glUniformMatrix4fv(typeShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+                glUniformMatrix3fv(typeShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(m_modelMatrix));
 
                 if (m_useTexture)
                 {
                     m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    glUniform1i(typeShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(typeShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
                 else
                 {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                    glUniform1i(typeShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(typeShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
 
-                m_terrain.render(m_defaultShader);
+                m_terrain.render(typeShader);
             }
 
             // Disable wireframe rendering after loop
@@ -370,6 +325,52 @@ class Application
             m_terrain.setParameters(m_terrainParameters);
         }
         ImGui::End();
+    }
+
+    void bindAndSetup(Shader& sh, const glm::mat4& mvp, const glm::mat4& model, const glm::mat3& normal)
+    {
+        sh.bind();
+        glUniformMatrix4fv(sh.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(sh.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix3fv(sh.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normal));
+
+        const Light& L = m_lights[0];
+        glUniform3fv(sh.getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+        glUniform3fv(sh.getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+    }
+
+    void setShadingUniforms(Shader& sh, int mode)
+    {
+        switch (mode)
+        {
+            case 1:  // Lambert
+                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+                break;
+            case 2:  // Phong
+                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+                glUniform3fv(sh.getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+                glUniform1f(sh.getUniformLocation("shininess"), shadingData.shininess);
+                glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
+                glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
+                break;
+            case 3:  // Blinn phong
+                glUniform3fv(sh.getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+                glUniform3fv(sh.getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+                glUniform1f(sh.getUniformLocation("shininess"), shadingData.shininess);
+                glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
+                glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular ? 1 : 0);
+                break;
+            default:
+                break;  // Default
+        }
+    }
+
+    Shader& pickShader()
+    {
+        return (m_shadingMode == 0)   ? m_defaultShader
+               : (m_shadingMode == 1) ? m_lambert
+               : (m_shadingMode == 2) ? m_phong
+                                      : m_blinn;
     }
 
    private:
