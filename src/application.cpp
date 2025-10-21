@@ -6,6 +6,7 @@
 #include <framework/disable_all_warnings.h>
 
 #include "camera.h"
+#include "terrain.h"
 DISABLE_WARNINGS_PUSH()
 #include <glad/glad.h>
 // Include glad before glfw3
@@ -28,11 +29,11 @@ class Application
    public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
-          m_texture(RESOURCE_ROOT "resources/checkerboard.png"),
-          m_planeMesh(createPlaneMesh(20.0f, 20.0f, 10)),
+          m_texture(RESOURCE_ROOT "resources/moon.png"),
           m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
-          m_activeCamera(&m_worldCamera)
+          m_activeCamera(&m_worldCamera),
+          m_terrain(m_terrainParameters)
 
     {
         m_window.registerKeyCallback(
@@ -56,10 +57,7 @@ class Application
 
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo.obj", true);
 
-        Mesh planeMesh = createPlaneMesh(10.0f, 10.0f, 10);
-        m_planeMesh    = GPUMesh(planeMesh);
-
-        m_objectCamera.setFollowTarget(&m_meshPosition, glm::vec3(0.0f, 1.0f, 3.0f));
+        m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
         try
         {
@@ -109,10 +107,12 @@ class Application
 
             m_window.updateInput();
 
-            m_worldCamera.updateInput();
-
             if (m_selectedViewpoint == 1)
                 updateObjectMovement();
+
+            m_activeCamera->updateInput();
+
+            m_terrain.update(m_activeCamera->cameraPos());
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             imgui();
@@ -124,12 +124,18 @@ class Application
             // ...
             glEnable(GL_DEPTH_TEST);
 
+            if (m_wire_frame_enabled)
+            {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
+            }
+
             glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
 
             for (GPUMesh& mesh : m_meshes)
             {
-                glm::mat4       modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
-                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * modelMatrix;
+                glm::mat4 modelMatrix     = glm::translate(m_modelMatrix, m_meshPosition);
+                modelMatrix               = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+                const glm::mat4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
                 const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
                 Shader* typeShader = (m_shadingMode == 0)   ? &m_defaultShader
@@ -159,7 +165,7 @@ class Application
                         else
                         {
                             glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_FALSE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), m_useMaterial);
+                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
                         }
                         break;
                     }
@@ -205,15 +211,10 @@ class Application
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
-                else
-                {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                }
                 mesh.draw(m_defaultShader);
             }
 
-            // Render the main plane
+            // Render the terrain
             {
                 const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * m_modelMatrix;
                 const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
@@ -223,17 +224,30 @@ class Application
                                    glm::value_ptr(mvpMatrix));
                 glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
-                glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                                   glm::value_ptr(m_modelMatrix));
 
+                if (m_useTexture)
+                {
+                    m_texture.bind(GL_TEXTURE0);
+                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+                else
                 {
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
 
-                m_planeMesh.draw(m_defaultShader);
+                m_terrain.render(m_defaultShader);
             }
 
+            // Disable wireframe rendering after loop
+            if (m_wire_frame_enabled)
+            {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
@@ -296,14 +310,18 @@ class Application
     void updateObjectMovement()
     {
         constexpr float objectSpeed = 0.05f;
+        constexpr float rotateSpeed = 0.01f;
+
+        glm::vec3 forward = glm::vec3(sin(m_meshRotation.y), 0.0f, cos(m_meshRotation.y));
+
         if (m_window.isKeyPressed(GLFW_KEY_W))
-            m_meshPosition.z -= objectSpeed;
+            m_meshPosition += forward * objectSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_S))
-            m_meshPosition.z += objectSpeed;
+            m_meshPosition -= forward * objectSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_A))
-            m_meshPosition.x -= objectSpeed;
+            m_meshRotation.y += rotateSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_D))
-            m_meshPosition.x += objectSpeed;
+            m_meshRotation.y -= rotateSpeed;
     }
 
     void imgui()
@@ -338,25 +356,40 @@ class Application
         ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
 
         ImGui::Separator();
+        ImGui::Text("Terrain");
+        ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
+        ImGui::Checkbox("Use Texture", &m_useTexture);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+
+        ImGui::SliderFloat("Tile Size", &m_terrainParameters.tileSize, 1.0f, 50.0f);
+        ImGui::SliderInt("Subdivisions", &m_terrainParameters.subdivisions, 1, 10);
+        ImGui::SliderInt("Render Distance", &m_terrainParameters.renderDistance, 1, 10);
+        ImGui::SliderFloat("Texture Scale", &m_terrainParameters.textureScale, 1.0f, 100.0f);  // Add this
+
+        if (ImGui::Button("Regenerate Terrain"))
+        {
+            m_terrain.setParameters(m_terrainParameters);
+        }
         ImGui::End();
     }
 
    private:
     Window m_window;
 
+    bool m_wire_frame_enabled = false;
+    bool m_useTexture         = true;
+
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
     Shader m_lambert, m_phong, m_blinn;
-    int    m_shadingMode = 0;
+    int    m_shadingMode = 1;
 
     std::vector<GPUMesh> m_meshes;
     Texture              m_texture;
     bool                 m_useMaterial{true};
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
-
-    GPUMesh m_planeMesh;
+    glm::vec3            m_meshRotation{0.0f, 0.0f, 0.0f};
 
     // Lights
     struct Light
@@ -372,6 +405,9 @@ class Application
     Camera  m_objectCamera;
     Camera* m_activeCamera;
     int     m_selectedViewpoint{0};  // 0 = World, 1 = Object
+
+    TerrainParameters m_terrainParameters{100, 50.0f, 5};
+    Terrain           m_terrain;
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);

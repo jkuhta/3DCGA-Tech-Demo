@@ -16,7 +16,7 @@ class Camera
     void updateInput();
     void setUserInteraction(bool enabled);
 
-    void setFollowTarget(const glm::vec3* target, const glm::vec3& offset);
+    void setFollowTarget(const glm::vec3* targetPos, const glm::vec3* targetRot);
 
     glm::vec3 cameraPos() const;
     glm::mat4 viewMatrix() const;
@@ -35,6 +35,6 @@ class Camera
     bool          m_userInteraction{true};
     glm::dvec2    m_prevCursorPos{0};
 
-    const glm::vec3* m_followTarget{nullptr};
-    glm::vec3        m_followOffset{0};
+    const glm::vec3* m_followTargetPos{nullptr};
+    const glm::vec3* m_followTargetRot{nullptr};
 };

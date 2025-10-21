@@ -64,5 +64,3 @@ class GPUMesh
     GLuint  m_vao{INVALID};
     GLuint  m_uboMaterial{INVALID};
 };
-
-Mesh createPlaneMesh(float width = 10.0f, float depth = 10.0f, int divisions = 1);

@@ -28,18 +28,13 @@ glm::vec3 Camera::cameraPos() const
 
 glm::mat4 Camera::viewMatrix() const
 {
-    if (m_followTarget)
-    {
-        glm::vec3 cameraPos = *m_followTarget + m_followOffset;
-        return glm::lookAt(cameraPos, *m_followTarget, glm::vec3(0, 1, 0));
-    }
     return glm::lookAt(m_position, m_position + m_forward, m_up);
 }
 
-void Camera::setFollowTarget(const glm::vec3* target, const glm::vec3& offset)
+void Camera::setFollowTarget(const glm::vec3* targetPos, const glm::vec3* targetRot)
 {
-    m_followTarget = target;
-    m_followOffset = offset;
+    m_followTargetPos = targetPos;
+    m_followTargetRot = targetRot;
 }
 
 void Camera::rotateX(float angle)
@@ -65,31 +60,47 @@ void Camera::updateInput()
 
     if (m_userInteraction)
     {
-        glm::vec3       localMoveDelta{0};
-        const glm::vec3 right = glm::normalize(glm::cross(m_forward, m_up));
-        if (m_pWindow->isKeyPressed(GLFW_KEY_A))
-            m_position -= moveSpeed * right;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_D))
-            m_position += moveSpeed * right;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_W))
-            m_position += moveSpeed * m_forward;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_S))
-            m_position -= moveSpeed * m_forward;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_R))
-            m_position += moveSpeed * m_up;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_F))
-            m_position -= moveSpeed * m_up;
-
-        const glm::dvec2 cursorPos = m_pWindow->getCursorPos();
-        const glm::vec2  delta     = lookSpeed * glm::vec2(cursorPos - m_prevCursorPos);
-        m_prevCursorPos            = cursorPos;
-
-        if (m_pWindow->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT))
+        if (m_followTargetPos)
         {
-            if (delta.x != 0.0f)
-                rotateY(delta.x);
-            if (delta.y != 0.0f)
-                rotateX(delta.y);
+            float distanceBehindObject = 3.0f;
+            float distanceAboveObject  = 1.0f;
+
+            // Fixate camera position {cameraDistance} behind and {cameraHeight} above the object
+            glm::vec3 offset = glm::vec3(-sin(m_followTargetRot->y) * distanceBehindObject, distanceAboveObject,
+                                         -cos(m_followTargetRot->y) * distanceBehindObject);
+            m_position       = *m_followTargetPos + offset;
+
+            // Make camera look at the object
+            m_forward = glm::normalize(*m_followTargetPos - m_position);
+        }
+        else
+        {
+            glm::vec3       localMoveDelta{0};
+            const glm::vec3 right = glm::normalize(glm::cross(m_forward, m_up));
+            if (m_pWindow->isKeyPressed(GLFW_KEY_A))
+                m_position -= moveSpeed * right;
+            if (m_pWindow->isKeyPressed(GLFW_KEY_D))
+                m_position += moveSpeed * right;
+            if (m_pWindow->isKeyPressed(GLFW_KEY_W))
+                m_position += moveSpeed * m_forward;
+            if (m_pWindow->isKeyPressed(GLFW_KEY_S))
+                m_position -= moveSpeed * m_forward;
+            if (m_pWindow->isKeyPressed(GLFW_KEY_R))
+                m_position += moveSpeed * m_up;
+            if (m_pWindow->isKeyPressed(GLFW_KEY_F))
+                m_position -= moveSpeed * m_up;
+
+            const glm::dvec2 cursorPos = m_pWindow->getCursorPos();
+            const glm::vec2  delta     = lookSpeed * glm::vec2(cursorPos - m_prevCursorPos);
+            m_prevCursorPos            = cursorPos;
+
+            if (m_pWindow->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT))
+            {
+                if (delta.x != 0.0f)
+                    rotateY(delta.x);
+                if (delta.y != 0.0f)
+                    rotateX(delta.y);
+            }
         }
     }
     else
