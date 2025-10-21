@@ -13,16 +13,18 @@ Terrain::Terrain(TerrainParameters params)
 
 void Terrain::update(const glm::vec3& cameraPos)
 {
-    int cameraX = int(floor(cameraPos.x / m_tileSize));
-    int cameraZ = int(floor(cameraPos.z / m_tileSize));
+    // Calculate indices of a tile below camera
+    int cameraTileX = int(floor(cameraPos.x / m_tileSize));
+    int cameraTileZ = int(floor(cameraPos.z / m_tileSize));
 
-    if (!m_generated || m_tiles.empty() || cameraX != m_lastCameraX || cameraZ != m_lastCameraZ)
+    // load/unload tiles if the camera moved to another tile (or Regenerate Terrain pressed)
+    if (!m_generated || m_tiles.empty() || cameraTileX != m_lastCameraTileX || cameraTileZ != m_lastCameraTileZ)
     {
-        loadTiles(cameraX, cameraZ);
-        unloadTiles(cameraX, cameraZ);
-        m_lastCameraX = cameraX;
-        m_lastCameraZ = cameraZ;
-        m_generated   = true;
+        loadTiles(cameraTileX, cameraTileZ);
+        unloadTiles(cameraTileX, cameraTileZ);
+        m_lastCameraTileX = cameraTileX;
+        m_lastCameraTileZ = cameraTileZ;
+        m_generated       = true;
     }
 }
 
@@ -84,36 +86,35 @@ GPUMesh Terrain::createTileMesh(int gridX, int gridZ)
         }
     }
 
-    mesh.material.kd = glm::vec3(0.5f, 0.7f, 0.3f);
+    mesh.material.kd = glm::vec3(0.8f, 0.8f, 0.8f);
     return GPUMesh(mesh);
 }
 
-void Terrain::loadTiles(int centerX, int centerZ)
+void Terrain::loadTiles(int centerTileX, int centerTileZ)
 {
-    for (int z = centerZ - m_renderDistance; z <= centerZ + m_renderDistance; z++)
+    for (int z = centerTileZ - m_renderDistance; z <= centerTileZ + m_renderDistance; z++)
     {
-        for (int x = centerX - m_renderDistance; x <= centerX + m_renderDistance; x++)
+        for (int x = centerTileX - m_renderDistance; x <= centerTileX + m_renderDistance; x++)
         {
             auto key = std::make_pair(x, z);
-            if (m_tiles.find(key) == m_tiles.end())
+            if (!m_tiles.contains(key))
             {
+                // Create a new tile if it is not yet created and in the visible distance
                 m_tiles[key] = std::make_unique<GPUMesh>(createTileMesh(x, z));
-                std::cout << "Created tile at (" << x << ", " << z << ")" << std::endl;  // Add debug
             }
         }
     }
-    std::cout << "Total tiles: " << m_tiles.size() << std::endl;
 }
 
-void Terrain::unloadTiles(int centerX, int centerZ)
+void Terrain::unloadTiles(int centerTileX, int centerTileZ)
 {
     int maxDist = m_renderDistance + 1;
 
     auto it = m_tiles.begin();
     while (it != m_tiles.end())
     {
-        int dx = abs(it->first.first - centerX);
-        int dz = abs(it->first.second - centerZ);
+        int dx = abs(it->first.first - centerTileX);
+        int dz = abs(it->first.second - centerTileZ);
 
         if (dx > maxDist || dz > maxDist)
         {

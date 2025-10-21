@@ -383,7 +383,7 @@ class Application
    private:
     Window m_window;
 
-    bool m_wire_frame_enabled = true;
+    bool m_wire_frame_enabled = false;
     bool m_useTexture         = true;
 
     // Shader for default rendering and for depth rendering

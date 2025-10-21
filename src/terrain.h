@@ -32,10 +32,10 @@ class Terrain
     bool  m_generated = false;
 
     std::map<std::pair<int, int>, std::unique_ptr<GPUMesh>> m_tiles;
-    int                                                     m_lastCameraX = -1;
-    int                                                     m_lastCameraZ = -1;
+    int                                                     m_lastCameraTileX = -1;
+    int                                                     m_lastCameraTileZ = -1;
 
     GPUMesh createTileMesh(int gridX, int gridZ);
-    void    loadTiles(int centerX, int centerZ);
-    void    unloadTiles(int centerX, int centerZ);
+    void    loadTiles(int centerTileX, int centerTileZ);
+    void    unloadTiles(int centerTileX, int centerTileZ);
 };
