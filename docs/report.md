@@ -45,13 +45,12 @@ camera is fixed behind the object, and the user can move the object around (W, S
 Dropdown: Viewpoint + select viewpoint option
 Hotkey: 1 (World view) / 2 (Object view)
 
-This feature was implemented similarly to exercise 4.1, utilizing the Camera class from camera.cpp. The World View
-camera behaves similarly to exercise 4.1 (uses the same view matrix calculation). The Object View camera extends this
-functionality by calling setFollowTarget(), which configures the camera to track a target position with a fixed offset.
-The view matrix is then calculated to maintain this offset relationship. When the object moves, the camera always
-follows the object from behind with the same offset. Switching between cameras works via the UI dropdown, and the
-setUserInteraction() is called accordingly to choose the active camera. Active camera is then used to calculate the
-view matrix which is passed to the shaders.
+This feature was implemented similarly to exercise 4.1, using the Camera class from camera.cpp. The World View
+camera behaves similarly to exercise 4.1. On the other hand, the Object View camera gets information about object
+position and rotation via setFollowTarget(). Then in Camera::updateInput() the camera position and orientation is
+recalculated with object data to always maintain the fixed position behind and above the object.
+Switching between cameras works via the UI dropdown, and the setUserInteraction() is called accordingly to choose the
+active camera. Active camera is then used to calculate the view matrix which is passed to the shaders.
 
 ### F2. Basic shading
 
