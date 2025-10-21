@@ -165,7 +165,7 @@ class Application
                         else
                         {
                             glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_FALSE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), m_useMaterial);
+                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
                         }
                         break;
                     }
@@ -211,11 +211,6 @@ class Application
                     glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
-                else
-                {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                }
                 mesh.draw(m_defaultShader);
             }
 
@@ -231,8 +226,6 @@ class Application
                                    glm::value_ptr(normalModelMatrix));
                 glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(m_modelMatrix));
-                glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
 
                 if (m_useTexture)
                 {
@@ -390,7 +383,7 @@ class Application
     Shader m_defaultShader;
     Shader m_shadowShader;
     Shader m_lambert, m_phong, m_blinn;
-    int    m_shadingMode = 0;
+    int    m_shadingMode = 1;
 
     std::vector<GPUMesh> m_meshes;
     Texture              m_texture;
