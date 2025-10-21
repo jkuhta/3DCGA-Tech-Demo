@@ -73,6 +73,21 @@ class Application
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
+            ShaderBuilder lambertBuilder;
+            lambertBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            lambertBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/lambert_frag.glsl");
+            m_lambert = lambertBuilder.build();
+
+            ShaderBuilder phongBuilder;
+            phongBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            phongBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/phong_frag.glsl");
+            m_phong = phongBuilder.build();
+
+            ShaderBuilder blinnbuilder;
+            blinnbuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            blinnbuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/blinn_phong_frag.glsl");
+            m_blinn = blinnbuilder.build();
+
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
@@ -100,26 +115,7 @@ class Application
                 updateObjectMovement();
 
             // Use ImGui for easy input/output of ints, floats, strings, etc...
-            ImGui::Begin("Window");
-
-            const char* viewpoints[] = {"World View", "Object View"};
-            ImGui::Combo("Viewpoint", &m_selectedViewpoint, viewpoints, 2);
-            if (m_selectedViewpoint == 0)
-            {
-                m_worldCamera.setUserInteraction(true);
-                m_objectCamera.setUserInteraction(false);
-                m_activeCamera = &m_worldCamera;
-            }
-            else
-            {
-                m_worldCamera.setUserInteraction(false);
-                m_objectCamera.setUserInteraction(true);
-                m_activeCamera = &m_objectCamera;
-            }
-
-            ImGui::Separator();
-            ImGui::Checkbox("Use material if no texture", &m_useMaterial);
-            ImGui::End();
+            imgui();
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -136,13 +132,72 @@ class Application
                 const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * modelMatrix;
                 const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(mvpMatrix));
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
+                Shader* typeShader = (m_shadingMode == 0)   ? &m_defaultShader
+                                     : (m_shadingMode == 1) ? &m_lambert
+                                     : (m_shadingMode == 2) ? &m_phong
+                                                            : &m_blinn;
+
+                typeShader->bind();
+
+                glUniformMatrix4fv(typeShader->getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+                glUniformMatrix4fv(typeShader->getUniformLocation("modelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(modelMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
+                glUniformMatrix3fv(typeShader->getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
                                    glm::value_ptr(normalModelMatrix));
+
+                switch (m_shadingMode)
+                {
+                    case 0:
+                    {  // Unlit
+                        if (mesh.hasTextureCoords())
+                        {
+                            m_texture.bind(GL_TEXTURE0);
+                            glUniform1i(typeShader->getUniformLocation("colorMap"), 0);
+                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_TRUE);
+                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
+                        }
+                        else
+                        {
+                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_FALSE);
+                            glUniform1i(typeShader->getUniformLocation("useMaterial"), m_useMaterial);
+                        }
+                        break;
+                    }
+                    case 1:
+                    {  // Lambert
+                        const Light& L = m_lights[0];
+                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+                        break;
+                    }
+                    case 2:
+                    {  // Phong
+                        const Light& L = m_lights[0];
+                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
+                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
+                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
+                                     glm::value_ptr(m_activeCamera->cameraPos()));
+                        break;
+                    }
+                    case 3:
+                    {  // Blinn
+                        const Light& L = m_lights[0];
+                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
+                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
+                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
+                                     glm::value_ptr(m_activeCamera->cameraPos()));
+                        break;
+                    }
+                    default:
+                        break;
+                }
+
                 if (mesh.hasTextureCoords())
                 {
                     m_texture.bind(GL_TEXTURE0);
@@ -206,6 +261,14 @@ class Application
             m_objectCamera.setUserInteraction(true);
             m_activeCamera = &m_objectCamera;
         }
+        else if (key == GLFW_KEY_3)
+            m_shadingMode = 0;
+        else if (key == GLFW_KEY_4)
+            m_shadingMode = 1;
+        else if (key == GLFW_KEY_5)
+            m_shadingMode = 2;
+        else if (key == GLFW_KEY_6)
+            m_shadingMode = 3;
     }
 
     // In here you can handle key releases
@@ -243,12 +306,50 @@ class Application
             m_meshPosition.x += objectSpeed;
     }
 
+    void imgui()
+    {
+        ImGui::Begin("Window");
+
+        const char* viewpoints[] = {"World View", "Object View"};
+        ImGui::Combo("Viewpoint", &m_selectedViewpoint, viewpoints, 2);
+        if (m_selectedViewpoint == 0)
+        {
+            m_worldCamera.setUserInteraction(true);
+            m_objectCamera.setUserInteraction(false);
+            m_activeCamera = &m_worldCamera;
+        }
+        else
+        {
+            m_worldCamera.setUserInteraction(false);
+            m_objectCamera.setUserInteraction(true);
+            m_activeCamera = &m_objectCamera;
+        }
+        ImGui::Separator();
+        const char* modes[] = {"Default", "Lambert", "Phong", "Blinn-Phong"};
+
+        auto& L = m_lights[m_selectedLight];  // one light for now
+        ImGui::DragFloat3("Light pos", &L.position[0], 0.05f);
+        ImGui::ColorEdit3("Light color", &L.color[0]);
+        ImGui::Separator();
+        ImGui::Combo("Shading", &m_shadingMode, modes, 4);
+        ImGui::ColorEdit3("Kd", &shadingData.kd[0]);
+        ImGui::ColorEdit3("Ks", &shadingData.ks[0]);
+        ImGui::SliderFloat("Shininess", &shadingData.shininess, 1.0f, 128.0f);
+        ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
+
+        ImGui::Separator();
+        ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+        ImGui::End();
+    }
+
    private:
     Window m_window;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
+    Shader m_lambert, m_phong, m_blinn;
+    int    m_shadingMode = 0;
 
     std::vector<GPUMesh> m_meshes;
     Texture              m_texture;
@@ -256,6 +357,15 @@ class Application
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
 
     GPUMesh m_planeMesh;
+
+    // Lights
+    struct Light
+    {
+        glm::vec3 position;
+        glm::vec3 color;
+    };
+    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 1.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
+    size_t             m_selectedLight = 0;
 
     // Viewpoints
     Camera  m_worldCamera;
@@ -267,6 +377,21 @@ class Application
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix       = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix{1.0f};
+
+    // Shading parameters
+    struct
+    {
+        // Diffuse (Lambert)
+        glm::vec3 kd{0.5f};
+        // Specular (Phong/Blinn Phong)
+        glm::vec3 ks{0.5f};
+        float     shininess = 3.0f;
+        float     roughness = 0.5f;
+        // Toon
+        int   toonDiscretize        = 4;
+        float toonSpecularThreshold = 0.49f;
+
+    } shadingData;
 };
 
 int main()
