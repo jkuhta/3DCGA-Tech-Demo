@@ -333,6 +333,7 @@ class Application
         ImGui::ColorEdit3("Kd", &shadingData.kd[0]);
         ImGui::ColorEdit3("Ks", &shadingData.ks[0]);
         ImGui::SliderFloat("Shininess", &shadingData.shininess, 1.0f, 128.0f);
+        ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
 
         ImGui::Separator();
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
@@ -383,9 +384,11 @@ class Application
         // Specular (Phong/Blinn Phong)
         glm::vec3 ks{0.5f};
         float     shininess = 3.0f;
+        float     roughness = 0.5f;
         // Toon
         int   toonDiscretize        = 4;
         float toonSpecularThreshold = 0.49f;
+
     } shadingData;
 };
 
