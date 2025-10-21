@@ -97,7 +97,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                 glm::uvec3 triangle;
                 for (unsigned j = 0; j < 3; j++) {
                     const auto& tinyObjIndex = shape.mesh.indices[i + j];
-                    Vertex vertex {
+                    Vertex vertex{
                         .position = construct_vec3(&inAttrib.vertices[3 * tinyObjIndex.vertex_index]),
                         .normal = glm::vec3(0),
                         .texCoord = glm::vec2(0)
@@ -109,7 +109,7 @@ std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSett
                     if (tinyObjIndex.texcoord_index != -1 && !inAttrib.texcoords.empty())
                         vertex.texCoord = glm::vec2(inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 0], inAttrib.texcoords[2 * tinyObjIndex.texcoord_index + 1]);
 
-                    const CacheKey cacheKey { tinyObjIndex.vertex_index, tinyObjIndex.normal_index, tinyObjIndex.texcoord_index };
+                    const CacheKey cacheKey{ tinyObjIndex.vertex_index, tinyObjIndex.normal_index, tinyObjIndex.texcoord_index };
                     if (auto iter = vertexCache.find(cacheKey); settings.cacheVertices && iter != std::end(vertexCache)) {
                         // Already visited this vertex? Reuse it!
                         triangle[j] = iter->second;

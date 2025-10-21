@@ -16,18 +16,16 @@ static constexpr float zoomSpeedFactor = 0.5f;
 
 // NOTE(Mathijs): field-of-view in radians.
 Trackball::Trackball(Window* pWindow, float fovy, float distFromLookAt, float rotationX, float rotationY)
-    : Trackball(pWindow, fovy, glm::vec3(0.0f), distFromLookAt, rotationX, rotationY)
-{
-}
+    : Trackball(pWindow, fovy, glm::vec3(0.0f), distFromLookAt, rotationX, rotationY) {}
 
 Trackball::Trackball(Window* pWindow, float fovy, const glm::vec3& lookAt, float distFromLookAt, float rotationX, float rotationY)
     : m_pWindow(pWindow)
-    , m_fovy(fovy)
-    , m_halfScreenSpaceHeight(std::tan(m_fovy / 2.0f))
-    , m_halfScreenSpaceWidth(m_pWindow->getAspectRatio() * m_halfScreenSpaceHeight)
-    , m_lookAt(lookAt)
-    , m_distanceFromLookAt(distFromLookAt)
-    , m_rotationEulerAngles(rotationX, rotationY, 0)
+      , m_fovy(fovy)
+      , m_halfScreenSpaceHeight(std::tan(m_fovy / 2.0f))
+      , m_halfScreenSpaceWidth(m_pWindow->getAspectRatio() * m_halfScreenSpaceHeight)
+      , m_lookAt(lookAt)
+      , m_distanceFromLookAt(distFromLookAt)
+      , m_rotationEulerAngles(rotationX, rotationY, 0)
 {
     m_rotationEulerAngles.z = 0;
 
@@ -93,11 +91,13 @@ glm::mat4 Trackball::projectionMatrix(float aspectRatio) const
     return glm::perspective(m_fovy, aspectRatio, 0.01f, 100.0f);
 }
 
-glm::vec3 Trackball::rotationEulerAngles() const {
+glm::vec3 Trackball::rotationEulerAngles() const
+{
     return m_rotationEulerAngles;
 }
 
-float Trackball::distanceFromLookAt() const {
+float Trackball::distanceFromLookAt() const
+{
     return m_distanceFromLookAt;
 }
 

@@ -16,14 +16,10 @@ static bool checkProgramErrors(GLuint program);
 static std::string readFile(std::filesystem::path filePath);
 
 Shader::Shader(GLuint program)
-    : m_program(program)
-{
-}
+    : m_program(program) {}
 
 Shader::Shader()
-    : m_program(invalid)
-{
-}
+    : m_program(invalid) {}
 
 Shader::Shader(Shader&& other)
 {
