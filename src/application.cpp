@@ -267,6 +267,8 @@ class Application
             m_shadingMode = 1;
         else if (key == GLFW_KEY_5)
             m_shadingMode = 2;
+        else if (key == GLFW_KEY_6)
+            m_shadingMode = 3;
     }
 
     // In here you can handle key releases
