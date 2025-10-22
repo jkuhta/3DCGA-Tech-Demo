@@ -1,0 +1,62 @@
+newmtl default
+d 1
+Ns 96
+Ni 0
+Ka 0.2 0.2 0.2
+Kd 0.7 0.7 0.7
+Ks 0.9 0.9 0.9
+Km 0
+
+newmtl default_propulsion
+d 1
+Ns 96
+Ni 0
+Ka 0.15 0.15 0.15
+Kd 0.6 0.6 0.6
+Ks 0.85 0.85 0.85
+Km 0
+
+newmtl default_windows
+d 0.7
+Ns 128
+Ni 0
+Ka 0 0 0
+Kd 0.3 0.7 0.8
+Ks 0.9 0.9 1.0
+Km 0
+
+newmtl default_saucer
+d 1
+Ns 96
+Ni 0
+Ka 0.15 0.15 0.15
+Kd 0.8 0.8 0.8
+Ks 0.85 0.85 0.9
+Km 0
+
+newmtl default_interiors
+d 1
+Ns 32
+Ni 0
+Ka 0 0 0
+Kd 0.65 0.65 0.65
+Ks 0.3 0.3 0.3
+Km 0
+
+newmtl default_levels_cushions
+d 1
+Ns 32
+Ni 0
+Ka 0 0 0
+Kd 0.6 0.4 0.4
+Ks 0.35 0.35 0.35
+Km 0
+
+newmtl default_display_mult
+d 1
+Ns 96
+Ni 0
+Ka 0.2 0.2 0.2
+Kd 0.9 0.9 0.9
+Ks 0.9 0.9 0.9
+Km 0
