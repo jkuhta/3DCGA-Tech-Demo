@@ -253,6 +253,10 @@ class Application
             m_meshRotation.y += rotateSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_D))
             m_meshRotation.y -= rotateSpeed;
+        if (m_window.isKeyPressed(GLFW_KEY_SPACE))
+            m_meshPosition.y += objectSpeed;
+        else if (m_meshPosition.y > 0.5f)
+            m_meshPosition.y -= objectSpeed;
     }
 
     void imgui()
