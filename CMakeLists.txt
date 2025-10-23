@@ -39,7 +39,7 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shaders/")
 
 set(Master_TechDemo_shader_copies "")
 # List all *.glsl files in the shaders folder
-file(GLOB Master_TechDemo_shader_sources "${CMAKE_CURRENT_LIST_DIR}/shaders/*.glsl")
+file(GLOB CONFIGURE_DEPENDS Master_TechDemo_shader_sources "${CMAKE_CURRENT_LIST_DIR}/shaders/*.glsl")
 foreach (shader_file IN LISTS Master_TechDemo_shader_sources)
     get_filename_component(file_name ${shader_file} NAME)
     message("shader_file: ${file_name}")

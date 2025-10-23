@@ -29,7 +29,7 @@ class Application
    public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
-          m_texture(RESOURCE_ROOT "resources/moon.png"),
+          m_terrainTexture(RESOURCE_ROOT "resources/terrain/Ground050/Ground050_2K-JPG_Color.jpg"),
           m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
           m_activeCamera(&m_worldCamera),
@@ -55,7 +55,7 @@ class Application
                     onMouseReleased(button, mods);
             });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo.obj", true);
+        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
 
         m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
@@ -71,20 +71,10 @@ class Application
             shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
-            ShaderBuilder lambertBuilder;
-            lambertBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            lambertBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/lambert_frag.glsl");
-            m_lambert = lambertBuilder.build();
-
-            ShaderBuilder phongBuilder;
-            phongBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            phongBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/phong_frag.glsl");
-            m_phong = phongBuilder.build();
-
-            ShaderBuilder blinnbuilder;
-            blinnbuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
-            blinnbuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/blinn_phong_frag.glsl");
-            m_blinn = blinnbuilder.build();
+            ShaderBuilder litBuilder;
+            litBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
+            litBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_lit_frag.glsl");
+            m_litShader = litBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
@@ -129,118 +119,59 @@ class Application
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
-            glm::mat4 viewMatrix = m_activeCamera->viewMatrix();
-
+            // Render all meshes
             for (GPUMesh& mesh : m_meshes)
             {
-                glm::mat4 modelMatrix     = glm::translate(m_modelMatrix, m_meshPosition);
-                modelMatrix               = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-                const glm::mat4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
-                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+                glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
+                modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
 
-                Shader* typeShader = (m_shadingMode == 0)   ? &m_defaultShader
-                                     : (m_shadingMode == 1) ? &m_lambert
-                                     : (m_shadingMode == 2) ? &m_phong
-                                                            : &m_blinn;
+                bindAndSetup(m_litShader, mvpMatrix, modelMatrix, normalModelMatrix);
 
-                typeShader->bind();
-
-                glUniformMatrix4fv(typeShader->getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                glUniformMatrix4fv(typeShader->getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(modelMatrix));
-                glUniformMatrix3fv(typeShader->getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(normalModelMatrix));
-
-                switch (m_shadingMode)
-                {
-                    case 0:
-                    {  // Unlit
-                        if (mesh.hasTextureCoords())
-                        {
-                            m_texture.bind(GL_TEXTURE0);
-                            glUniform1i(typeShader->getUniformLocation("colorMap"), 0);
-                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_TRUE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
-                        }
-                        else
-                        {
-                            glUniform1i(typeShader->getUniformLocation("hasTexCoords"), GL_FALSE);
-                            glUniform1i(typeShader->getUniformLocation("useMaterial"), GL_FALSE);
-                        }
-                        break;
-                    }
-                    case 1:
-                    {  // Lambert
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
-                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                        break;
-                    }
-                    case 2:
-                    {  // Phong
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
-                        glUniform3fv(typeShader->getUniformLocation("kd"), 1, glm::value_ptr(shadingData.kd));
-                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
-                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
-                                     glm::value_ptr(m_activeCamera->cameraPos()));
-                        break;
-                    }
-                    case 3:
-                    {  // Blinn
-                        const Light& L = m_lights[0];
-                        glUniform3fv(typeShader->getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-                        glUniform3fv(typeShader->getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
-                        glUniform3fv(typeShader->getUniformLocation("ks"), 1, glm::value_ptr(shadingData.ks));
-                        glUniform1f(typeShader->getUniformLocation("shininess"), shadingData.shininess);
-                        glUniform3fv(typeShader->getUniformLocation("viewPos"), 1,
-                                     glm::value_ptr(m_activeCamera->cameraPos()));
-                        break;
-                    }
-                    default:
-                        break;
-                }
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
                 if (mesh.hasTextureCoords())
                 {
-                    m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                }
-                mesh.draw(m_defaultShader);
-            }
-
-            // Render the terrain
-            {
-                const glm::mat4 mvpMatrix         = m_projectionMatrix * viewMatrix * m_modelMatrix;
-                const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
-
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(mvpMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(normalModelMatrix));
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE,
-                                   glm::value_ptr(m_modelMatrix));
-
-                if (m_useTexture)
-                {
-                    m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+                    m_terrainTexture.bind(
+                        GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
                 else
                 {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
 
-                m_terrain.render(m_defaultShader);
+                mesh.draw(m_litShader);
+
+                glDisable(GL_BLEND);
+            }
+
+            // Render terrain
+            {
+                glm::mat4 modelMatrix       = m_modelMatrix;
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+                bindAndSetup(m_litShader, mvpMatrix, modelMatrix, normalModelMatrix);
+
+                if (m_useTexture)
+                {
+                    m_terrainTexture.bind(GL_TEXTURE0);
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+                else
+                {
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
+                }
+
+                m_terrain.render(m_litShader);
             }
 
             // Disable wireframe rendering after loop
@@ -343,17 +274,17 @@ class Application
             m_activeCamera = &m_objectCamera;
         }
         ImGui::Separator();
-        const char* modes[] = {"Default", "Lambert", "Phong", "Blinn-Phong"};
 
+        ImGui::Text("Lights");
         auto& L = m_lights[m_selectedLight];  // one light for now
         ImGui::DragFloat3("Light pos", &L.position[0], 0.05f);
         ImGui::ColorEdit3("Light color", &L.color[0]);
         ImGui::Separator();
-        ImGui::Combo("Shading", &m_shadingMode, modes, 4);
-        ImGui::ColorEdit3("Kd", &shadingData.kd[0]);
-        ImGui::ColorEdit3("Ks", &shadingData.ks[0]);
-        ImGui::SliderFloat("Shininess", &shadingData.shininess, 1.0f, 128.0f);
-        ImGui::SliderFloat("Roughness", &shadingData.roughness, 0.0f, 1.0f);
+
+        ImGui::Text("Shading");
+        const char* modes[] = {"Default", "Albedo", "Lambert", "Phong", "Blinn-Phong"};
+        ImGui::Combo("Mode", &m_shadingMode, modes, 5);
+        ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
 
         ImGui::Separator();
         ImGui::Text("Terrain");
@@ -373,20 +304,37 @@ class Application
         ImGui::End();
     }
 
+    void bindAndSetup(Shader& sh, const glm::mat4& mvp, const glm::mat4& model, const glm::mat3& normal)
+    {
+        sh.bind();
+        glUniformMatrix4fv(sh.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(sh.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix3fv(sh.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normal));
+
+        const Light& L = m_lights[0];
+        glUniform3fv(sh.getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
+        glUniform3fv(sh.getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+
+        glUniform1i(sh.getUniformLocation("shadingMode"), m_shadingMode);
+        glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular);
+        glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
+    }
+
    private:
     Window m_window;
 
-    bool m_wire_frame_enabled = false;
-    bool m_useTexture         = true;
+    bool m_wire_frame_enabled   = false;
+    bool m_useTexture           = true;
+    bool m_useDiffuseInSpecular = true;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
-    Shader m_lambert, m_phong, m_blinn;
-    int    m_shadingMode = 1;
+    Shader m_litShader;
+    int    m_shadingMode = 0;
 
     std::vector<GPUMesh> m_meshes;
-    Texture              m_texture;
+    Texture              m_terrainTexture;
     bool                 m_useMaterial{true};
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
     glm::vec3            m_meshRotation{0.0f, 0.0f, 0.0f};
@@ -397,7 +345,7 @@ class Application
         glm::vec3 position;
         glm::vec3 color;
     };
-    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 1.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
+    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 5.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
     size_t             m_selectedLight = 0;
 
     // Viewpoints
