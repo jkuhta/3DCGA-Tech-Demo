@@ -55,7 +55,8 @@ class Application
                     onMouseReleased(button, mods);
             });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
+        m_ufoMeshes  = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
+        m_baseMeshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/environment/MarsBase.obj");
 
         m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
@@ -119,8 +120,8 @@ class Application
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
-            // Render all meshes
-            for (GPUMesh& mesh : m_meshes)
+            // Render all UFO meshes
+            for (GPUMesh& mesh : m_ufoMeshes)
             {
                 glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
                 modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -131,6 +132,31 @@ class Application
 
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+                if (mesh.hasTextureCoords())
+                {
+                    m_terrainTexture.bind(
+                        GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+                else
+                {
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
+                }
+
+                mesh.draw(m_litShader);
+            }
+
+            // Render base meshes
+            for (GPUMesh& mesh : m_baseMeshes)
+            {
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * m_modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+
+                bindAndSetup(m_litShader, mvpMatrix, m_modelMatrix, normalModelMatrix);
 
                 if (mesh.hasTextureCoords())
                 {
@@ -337,7 +363,8 @@ class Application
     Shader m_litShader;
     int    m_shadingMode = 0;
 
-    std::vector<GPUMesh> m_meshes;
+    std::vector<GPUMesh> m_ufoMeshes;
+    std::vector<GPUMesh> m_baseMeshes;
     Texture              m_terrainTexture;
     bool                 m_useMaterial{true};
     glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
