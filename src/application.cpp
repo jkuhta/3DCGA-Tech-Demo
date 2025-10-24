@@ -100,6 +100,27 @@ class Application
         {
             std::cerr << e.what() << std::endl;
         }
+
+        glGenTextures(1, &m_texShadow);
+        glBindTexture(GL_TEXTURE_2D, m_texShadow);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, m_shadowWidth, m_shadowWidth, 0, GL_DEPTH_COMPONENT,
+                     GL_FLOAT, NULL);
+
+        // Set behaviour for when texture coordinates are outside the [0, 1] range.
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        // Set interpolation for texture sampling (GL_NEAREST for no interpolation).
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glGenFramebuffers(1, &m_framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_texShadow, 0);
+        glDrawBuffer(GL_NONE);  // Important for depth-only FBO
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
     void update()
@@ -136,15 +157,63 @@ class Application
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
+            // --- Setup light matrices ---
+            glm::mat4 lightProjection  = glm::perspective(glm::radians(60.0f), 1.0f, 0.5f, 50.0f);
+            glm::mat4 lightView        = glm::lookAt(m_lights[0].position, glm::vec3(0.0f), glm::vec3(0, 1, 0));
+            glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+            // --- Perform shadow pass ---
+            {
+                glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
+                glViewport(0, 0, m_shadowWidth, m_shadowWidth);
+                glClearDepth(1.0);
+                glClear(GL_DEPTH_BUFFER_BIT);
+                glEnable(GL_DEPTH_TEST);
+
+                m_shadowShader.bind();
+
+                // Uniform for light space transform
+                GLint mvpLoc = m_shadowShader.getUniformLocation("mvpMatrix");
+
+                // Render static environment meshes
+                for (auto& mesh : m_baseMeshes)
+                {
+                    glm::mat4 model    = m_modelMatrix;  // or however you compute it
+                    glm::mat4 lightMVP = lightSpaceMatrix * model;
+                    glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(lightMVP));
+
+                    glBindVertexArray(mesh.getVAO());
+                    mesh.draw(m_shadowShader, false);
+                }
+
+                // Render moving UFO meshes
+                for (auto& mesh : m_ufoMeshes)
+                {
+                    glm::mat4 model = glm::rotate(glm::translate(m_modelMatrix, m_meshPosition), m_meshRotation.y,
+                                                  glm::vec3(0, 1, 0));
+
+                    glm::mat4 lightMVP = lightSpaceMatrix * model;
+                    glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(lightMVP));
+
+                    glBindVertexArray(mesh.getVAO());
+                    mesh.draw(m_shadowShader, false);
+                }
+
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
+                glClearColor(0.4f, 0.4f, 0.5f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            }
+
             // Render all UFO meshes
             for (GPUMesh& mesh : m_ufoMeshes)
             {
-                glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
-                modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
-                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
+                glm::mat4 model =
+                    glm::rotate(glm::translate(m_modelMatrix, m_meshPosition), m_meshRotation.y, glm::vec3(0, 1, 0));
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * model;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(model));
 
-                bindAndSetup(m_litShader, mvpMatrix, modelMatrix, normalModelMatrix);
+                bindAndSetup(m_litShader, mvpMatrix, model, normalModelMatrix);
 
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -154,10 +223,16 @@ class Application
                 glUniformMatrix4fv(m_litShader.getUniformLocation("skyboxRotation"), 1, GL_FALSE,
                                    glm::value_ptr(skyboxRotation));
 
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, m_texShadow);
+                glUniform1i(m_litShader.getUniformLocation("texShadow"), 0);
+                glUniformMatrix4fv(m_litShader.getUniformLocation("lightMVP"), 1, GL_FALSE,
+                                   glm::value_ptr(lightSpaceMatrix));
+
                 if (mesh.hasTextureCoords())
                 {
-                    m_terrainTexture.bind(
-                        GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
+                    // m_terrainTexture.bind(
+                    //     GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
                     glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
@@ -220,8 +295,8 @@ class Application
 
                 if (m_useTexture)
                 {
-                    m_terrainTexture.bind(GL_TEXTURE0);
-                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    m_terrainTexture.bind(GL_TEXTURE2);
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 2);
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
@@ -277,6 +352,7 @@ class Application
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
+        glDeleteFramebuffers(1, &m_framebuffer);
     }
 
     // In here you can handle key presses
@@ -386,6 +462,7 @@ class Application
         ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
         ImGui::Checkbox("Use Environmental Mapping", &m_useEnvironmentalMapping);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+        ImGui::Checkbox("Use Shadows", &m_useShadows);
 
         ImGui::Separator();
         ImGui::Text("Normal Mapping Terrain");
@@ -423,6 +500,7 @@ class Application
 
         glUniform1i(sh.getUniformLocation("shadingMode"), m_shadingMode);
         glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular);
+        glUniform1i(sh.getUniformLocation("useShadows"), m_useShadows);
         glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
     }
 
@@ -440,6 +518,7 @@ class Application
     Shader m_litShader;
     Shader m_skyboxShader;
     int    m_shadingMode = 0;
+    Shader m_lightShader;
 
     std::vector<GPUMesh> m_ufoMeshes;
     std::vector<GPUMesh> m_baseMeshes;
@@ -458,6 +537,8 @@ class Application
     {
         glm::vec3 position;
         glm::vec3 color;
+        bool      is_spotlight;
+        glm::vec3 direction;
     };
     std::vector<Light> m_lights        = {{glm::vec3(0.4f, 10.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
     size_t             m_selectedLight = 0;
@@ -477,9 +558,15 @@ class Application
     int     m_normalFlipY    = 0;
 
     // Projection and view matrices for you to fill in and use
-    glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
+    glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
     glm::mat4 m_viewMatrix       = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix{1.0f};
+
+    // Shadows
+    GLuint m_texShadow;
+    GLuint m_framebuffer;
+    int    m_shadowWidth = 4096;
+    bool   m_useShadows  = true;
 };
 
 int main()

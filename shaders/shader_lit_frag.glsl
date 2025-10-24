@@ -24,6 +24,13 @@ uniform mat4 skyboxRotation;
 uniform bool useEnvironmentalMapping;
 
 uniform vec3 lightPos, lightColor;
+uniform mat4 lightMVP;
+
+uniform sampler2D texShadow;
+uniform float offset = 0.0001;
+uniform int kernelSize = 5;
+uniform bool useShadows;
+
 uniform vec3 viewPos;
 uniform bool useDiffuse;
 uniform sampler2D colorMap;
@@ -85,6 +92,36 @@ vec3 reflection(vec3 n, vec3 i) {
     return texture(skybox, rotatedR).rgb;
 }
 
+float shadow(vec3 normal)
+{
+    if (!useShadows) return 1.0;
+
+    vec4 fragLightCoord = lightMVP * vec4(fragPosition, 1.0);
+    fragLightCoord.xyz /= fragLightCoord.w;
+    fragLightCoord.xyz = fragLightCoord.xyz * 0.5 + 0.5;
+
+    if (fragLightCoord.z > 1.0 || any(lessThan(fragLightCoord.xy, vec2(0.0))) || any(greaterThan(fragLightCoord.xy, vec2(1.0))))
+    return 1.0;
+
+    float fragDepth = fragLightCoord.z;
+    float texelSize = 1.0 / 1024.0;
+    float bias = max(offset * (1.0 - dot(normal, vec3(0.0))), 0.0005);
+
+    float shadowSum = 0.0;
+    int samples = 0;
+
+    for (int x = -kernelSize; x <= kernelSize; ++x) {
+        for (int y = -kernelSize; y <= kernelSize; ++y) {
+            vec2 coord = fragLightCoord.xy + vec2(x, y) * texelSize;
+            float closestDepth = texture(texShadow, coord).r;
+            shadowSum += (fragDepth - bias <= closestDepth) ? 1.0 : 0.0;
+            samples++;
+        }
+    }
+
+    return shadowSum / float(samples);
+}
+
 void main() {
     vec3 normal  = normalize(fragNormal);
 
@@ -140,7 +177,7 @@ void main() {
 
     if (useEnvironmentalMapping) color += reflection(normal, -viewDir) * ks * 0.5;// TODO - should use proper reflection parameter instead of ks + add refraction
 
-    color *= lightColor;
+    color *= lightColor * shadow(normal);
 
     if (hasTexCoords || useMaterial) { fragColor = vec4(clamp(color, 0.0, 1.0), transparency); }
     else { fragColor = vec4(normal, 1); }
