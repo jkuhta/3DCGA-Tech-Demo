@@ -2,6 +2,7 @@
 in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
+in mat3 fragTBN;
 
 layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh.h
 {
@@ -19,6 +20,11 @@ uniform bool hasTexCoords;
 uniform bool useMaterial;
 uniform int  shadingMode;// 0=Default, 1=Lambert, 2=Phong, 3=Blinn
 
+uniform bool useNormalMap;
+uniform sampler2D normalMap;
+uniform float normalStrength; 
+uniform bool normalFlipY; 
+
 layout(location = 0) out vec4 fragColor;
 
 vec3 computeAlbedo() {
@@ -27,6 +33,13 @@ vec3 computeAlbedo() {
 
 float lambertTerm(vec3 n, vec3 l) {
     return max(dot(n, l), 0.0);
+}
+
+vec3 mapNormal() {
+    vec3 n = texture(normalMap, fragTexCoord).rgb * 2.0 - 1.0;
+    if (normalFlipY) n.g = -n.g;
+    n = normalize(mix(vec3(0,0,1), n, normalStrength));
+    return normalize(fragTBN * n);
 }
 
 float phongSpecular(vec3 n, vec3 l, vec3 v, float shin) {
@@ -41,6 +54,9 @@ float blinnSpecular(vec3 n, vec3 l, vec3 v, float shin) {
 
 void main() {
     vec3 normal  = normalize(fragNormal);
+
+    if (useNormalMap && hasTexCoords)
+        normal = mapNormal();
     vec3 lightDir= normalize(lightPos - fragPosition);
     vec3 viewDir = normalize(viewPos  - fragPosition);
 

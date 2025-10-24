@@ -170,6 +170,15 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
+                glUniform1i(m_litShader.getUniformLocation("useNormalMap"), m_useNormalMap);
+                glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_TRUE);
+                if (m_useNormalMap)
+                {
+                    m_terrainNormal.bind(GL_TEXTURE1);
+                    glUniform1i(m_litShader.getUniformLocation("normalMap"), 1);
+                    glUniform1f(m_litShader.getUniformLocation("normalStrength"), m_normalStrength);
+                    glUniform1i(m_litShader.getUniformLocation("normalFlipY"), m_normalFlipY);
+                }
 
                 m_terrain.render(m_litShader);
             }
@@ -287,6 +296,12 @@ class Application
         ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
 
         ImGui::Separator();
+        ImGui::Text("Normal Mapping Terrain");
+        ImGui::Checkbox("Use Normal Map", &m_useNormalMap);
+        ImGui::SliderFloat("Normal Strength", &m_normalStrength, 0.0f, 2.0f);
+        ImGui::Checkbox("Flip Normal Y", reinterpret_cast<bool*>(&m_normalFlipY));
+
+        ImGui::Separator();
         ImGui::Text("Terrain");
         ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
         ImGui::Checkbox("Use Texture", &m_useTexture);
@@ -356,6 +371,11 @@ class Application
 
     TerrainParameters m_terrainParameters{100, 50.0f, 5};
     Terrain           m_terrain;
+
+    Texture m_terrainNormal{RESOURCE_ROOT "resources/terrain/Ground050/Ground050_2K-JPG_NormalGL.jpg"};
+    bool    m_useNormalMap   = true;
+    float   m_normalStrength = 1.0f;
+    int     m_normalFlipY    = 0;
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);

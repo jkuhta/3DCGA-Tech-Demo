@@ -11,44 +11,50 @@ DISABLE_WARNINGS_POP()
 #include <span>
 #include <vector>
 
-struct Vertex {
-	glm::vec3 position;
-	glm::vec3 normal;
-	glm::vec2 texCoord; // Texture coordinate
+struct Vertex
+{
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec2 texCoord;  // Texture coordinate
+    glm::vec3 tangent;
+    glm::vec3 bitangent;
 
-	[[nodiscard]] constexpr bool operator==(const Vertex&) const noexcept = default;
+    [[nodiscard]] constexpr bool operator==(const Vertex&) const noexcept = default;
 };
 
-struct Material {
-	glm::vec3 kd; // Diffuse color
-	glm::vec3 ks{ 0.0f };
-	float shininess{ 1.0f };
-	float transparency{ 1.0f };
+struct Material
+{
+    glm::vec3 kd;  // Diffuse color
+    glm::vec3 ks{0.0f};
+    float     shininess{1.0f};
+    float     transparency{1.0f};
 
-	// Optional texture that replaces kd; use as follows:
-	// 
-	// if (material.kdTexture) {
-	//   material.kdTexture->getTexel(...);
-	// }
-	std::shared_ptr<Image> kdTexture;
+    // Optional texture that replaces kd; use as follows:
+    //
+    // if (material.kdTexture) {
+    //   material.kdTexture->getTexel(...);
+    // }
+    std::shared_ptr<Image> kdTexture;
 };
 
-struct Mesh {
-	// Vertices contain the vertex positions and normals of the mesh.
-	std::vector<Vertex> vertices;
-	// A triangle contains a triplet of values corresponding to the indices of the 3 vertices in the vertices array.
-	std::vector<glm::uvec3> triangles;
+struct Mesh
+{
+    // Vertices contain the vertex positions and normals of the mesh.
+    std::vector<Vertex> vertices;
+    // A triangle contains a triplet of values corresponding to the indices of the 3 vertices in the vertices array.
+    std::vector<glm::uvec3> triangles;
 
-	Material material;
+    Material material;
 };
 
-struct LoadMeshSettings {
-	bool normalizeVertexPositions { false };
-	bool cacheVertices { true };
+struct LoadMeshSettings
+{
+    bool normalizeVertexPositions{false};
+    bool cacheVertices{true};
 };
 
 [[nodiscard]] std::vector<Mesh> loadMesh(const std::filesystem::path& file, const LoadMeshSettings& settings = {});
-[[nodiscard]] Mesh mergeMeshes(std::span<const Mesh> meshes);
-void meshFlipX(Mesh& mesh);
-void meshFlipY(Mesh& mesh);
-void meshFlipZ(Mesh& mesh);
+[[nodiscard]] Mesh              mergeMeshes(std::span<const Mesh> meshes);
+void                            meshFlipX(Mesh& mesh);
+void                            meshFlipY(Mesh& mesh);
+void                            meshFlipZ(Mesh& mesh);
