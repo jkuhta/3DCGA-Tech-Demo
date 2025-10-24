@@ -62,8 +62,8 @@ void Camera::updateInput()
     {
         if (m_followTargetPos)
         {
-            float distanceBehindObject = 3.0f;
-            float distanceAboveObject  = 1.0f;
+            float distanceBehindObject = 2.0f;
+            float distanceAboveObject  = 0.5f;
 
             // Fixate camera position {cameraDistance} behind and {cameraHeight} above the object
             glm::vec3 offset = glm::vec3(-sin(m_followTargetRot->y) * distanceBehindObject, distanceAboveObject,

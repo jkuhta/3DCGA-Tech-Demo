@@ -3,15 +3,19 @@ in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
 
-layout(std140) uniform Material // Must match the GPUMaterial defined in src/mesh.h
+layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh.h
 {
     vec3 kd;
     vec3 ks;
     float shininess;
     float transparency;
-    float roughness;   
+    float roughness;
     float metallic;
 };
+
+uniform samplerCube skybox;
+uniform mat4 skyboxRotation;
+uniform bool useEnvironmentalMapping;
 
 uniform vec3 lightPos, lightColor;
 uniform vec3 viewPos;
@@ -61,6 +65,13 @@ vec3  F_Schlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+vec3 reflection(vec3 n, vec3 i) {
+    vec3 R = reflect(i, n);
+    vec3 rotatedR = mat3(skyboxRotation) * R;
+
+    return texture(skybox, rotatedR).rgb;
+}
+
 void main() {
     vec3 normal  = normalize(fragNormal);
     vec3 lightDir= normalize(lightPos - fragPosition);
@@ -90,8 +101,8 @@ void main() {
 
         vec3  halfVec = normalize(viewDir + lightDir);
         float NdotL = max(dot(normal, lightDir), 0.0);
-        float NdotV = max(dot(normal, viewDir ), 0.0);
-        float NdotH = max(dot(normal, halfVec ), 0.0);
+        float NdotV = max(dot(normal, viewDir), 0.0);
+        float NdotH = max(dot(normal, halfVec), 0.0);
         float HdotV = max(dot(halfVec, viewDir), 0.0);
 
         vec3  F0 = mix(vec3(0.04), albedo, m);
@@ -103,13 +114,15 @@ void main() {
         vec3 kD = (1.0 - kS) * (1.0 - m);
 
         vec3 spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
-        vec3 Lo   = (kD * albedo / PI + spec) * NdotL;
+        vec3 Lo   = (kD * albedo / PI + spec)  * NdotL;
 
-        vec3 ambient = albedo * 0.15; 
-        color = ambient + Lo;
+        vec3 ambient = albedo * 0.15;
+        color = ambient + Lo;// TODO - something not good, pbr is too dark
     } else {
         color = normal;
     }
+
+    if (useEnvironmentalMapping) color += reflection(normal, -viewDir) * ks * 0.5;// TODO - should use proper reflection parameter instead of ks + add refraction
 
     color *= lightColor;
 

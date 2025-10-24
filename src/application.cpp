@@ -6,6 +6,8 @@
 #include <framework/disable_all_warnings.h>
 
 #include "camera.h"
+#include "skybox.h"
+#include "stb/stb_image.h"
 #include "terrain.h"
 DISABLE_WARNINGS_PUSH()
 #include <glad/glad.h>
@@ -30,7 +32,7 @@ class Application
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
           m_terrainTexture(RESOURCE_ROOT "resources/terrain/Ground050/Ground050_2K-JPG_Color.jpg"),
-          m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
+          m_worldCamera(&m_window, glm::vec3(-6.0f, 2.5f, 2.5f), -glm::vec3(-3.5f, 0.5f, 2.0f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
           m_activeCamera(&m_worldCamera),
           m_terrain(m_terrainParameters)
@@ -55,7 +57,14 @@ class Application
                     onMouseReleased(button, mods);
             });
 
-        m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
+        m_ufoMeshes  = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
+        m_baseMeshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/environment/MarsBase.obj");
+
+        std::vector<std::string> cubemapFaces = {"resources/skybox/right.png", "resources/skybox/left.png",
+                                                 "resources/skybox/top.png",   "resources/skybox/bottom.png",
+                                                 "resources/skybox/front.png", "resources/skybox/back.png"};
+        m_cubemapTex                          = Skybox::loadCubemap(cubemapFaces);
+        m_skyboxVAO                           = Skybox::createSkyboxVAO();
 
         m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
@@ -75,6 +84,11 @@ class Application
             litBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
             litBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_lit_frag.glsl");
             m_litShader = litBuilder.build();
+
+            ShaderBuilder skyboxBuilder;
+            skyboxBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
+            skyboxBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
+            m_skyboxShader = skyboxBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
@@ -104,14 +118,17 @@ class Application
 
             m_terrain.update(m_activeCamera->cameraPos());
 
+            // Increment skybox rotation and update skybox rotation matrix
+            m_skyboxRotation += 0.005f;
+            glm::mat4 skyboxRotation =
+                glm::rotate(glm::mat4(1.0f), glm::radians(m_skyboxRotation), glm::vec3(0.0f, 1.0f, 0.0f));
+
             // Use ImGui for easy input/output of ints, floats, strings, etc...
             imgui();
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            // ...
             glEnable(GL_DEPTH_TEST);
 
             if (m_wire_frame_enabled)
@@ -119,8 +136,8 @@ class Application
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
-            // Render all meshes
-            for (GPUMesh& mesh : m_meshes)
+            // Render all UFO meshes
+            for (GPUMesh& mesh : m_ufoMeshes)
             {
                 glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
                 modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -131,6 +148,11 @@ class Application
 
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
+                glUniform1i(m_litShader.getUniformLocation("skybox"), 1);
+                glUniformMatrix4fv(m_litShader.getUniformLocation("skyboxRotation"), 1, GL_FALSE,
+                                   glm::value_ptr(skyboxRotation));
 
                 if (mesh.hasTextureCoords())
                 {
@@ -145,6 +167,40 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
+                glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), m_useEnvironmentalMapping);
+
+                mesh.draw(m_litShader);
+
+                glDisable(GL_BLEND);
+            }
+
+            // Render base meshes
+            for (GPUMesh& mesh : m_baseMeshes)
+            {
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * m_modelMatrix;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
+
+                bindAndSetup(m_litShader, mvpMatrix, m_modelMatrix, normalModelMatrix);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
+                glUniform1i(m_litShader.getUniformLocation("skybox"), 1);
+                glUniformMatrix4fv(m_litShader.getUniformLocation("skyboxRotation"), 1, GL_FALSE,
+                                   glm::value_ptr(skyboxRotation));
+
+                if (mesh.hasTextureCoords())
+                {
+                    // m_terrainTexture.bind(
+                    //     GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
+                }
+                else
+                {
+                    glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+                    glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
+                }
+                glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), m_useEnvironmentalMapping);
 
                 mesh.draw(m_litShader);
 
@@ -170,8 +226,32 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_FALSE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
+                glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), GL_FALSE);
 
                 m_terrain.render(m_litShader);
+            }
+
+            // Render skybox
+            {
+                glm::mat4 skyboxView = glm::mat4(glm::mat3(m_activeCamera->viewMatrix())) * skyboxRotation;
+
+                glDepthMask(GL_FALSE);
+                glDepthFunc(GL_LEQUAL);
+                m_skyboxShader.bind();
+                glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE, glm::value_ptr(skyboxView));
+                glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE,
+                                   glm::value_ptr(m_projectionMatrix));
+                glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 0);
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
+
+                glBindVertexArray(m_skyboxVAO);
+                glDrawArrays(GL_TRIANGLES, 0, 36);
+                glBindVertexArray(0);
+
+                glDepthMask(GL_TRUE);
+                glDepthFunc(GL_LESS);
             }
 
             // Disable wireframe rendering after loop
@@ -253,6 +333,10 @@ class Application
             m_meshRotation.y += rotateSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_D))
             m_meshRotation.y -= rotateSpeed;
+        if (m_window.isKeyPressed(GLFW_KEY_SPACE))
+            m_meshPosition.y += objectSpeed;
+        else if (m_meshPosition.y > 1.5f)
+            m_meshPosition.y -= objectSpeed;
     }
 
     void imgui()
@@ -285,17 +369,18 @@ class Application
         const char* modes[] = {"Default", "Albedo", "Lambert", "Phong", "Blinn-Phong", "PBR"};
         ImGui::Combo("Mode", &m_shadingMode, modes, 6);
         ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
+        ImGui::Checkbox("Use Environmental Mapping", &m_useEnvironmentalMapping);
+        ImGui::Checkbox("Use material if no texture", &m_useMaterial);
 
         ImGui::Separator();
         ImGui::Text("Terrain");
         ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
         ImGui::Checkbox("Use Texture", &m_useTexture);
-        ImGui::Checkbox("Use material if no texture", &m_useMaterial);
 
         ImGui::SliderFloat("Tile Size", &m_terrainParameters.tileSize, 1.0f, 50.0f);
         ImGui::SliderInt("Subdivisions", &m_terrainParameters.subdivisions, 1, 10);
         ImGui::SliderInt("Render Distance", &m_terrainParameters.renderDistance, 1, 10);
-        ImGui::SliderFloat("Texture Scale", &m_terrainParameters.textureScale, 1.0f, 100.0f);  // Add this
+        ImGui::SliderFloat("Texture Scale", &m_terrainParameters.textureScale, 1.0f, 100.0f);
 
         if (ImGui::Button("Regenerate Terrain"))
         {
@@ -323,21 +408,29 @@ class Application
    private:
     Window m_window;
 
-    bool m_wire_frame_enabled   = false;
-    bool m_useTexture           = true;
-    bool m_useDiffuseInSpecular = true;
+    bool m_wire_frame_enabled      = false;
+    bool m_useTexture              = true;
+    bool m_useEnvironmentalMapping = true;
+    bool m_useDiffuseInSpecular    = true;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
     Shader m_litShader;
+    Shader m_skyboxShader;
     int    m_shadingMode = 0;
 
-    std::vector<GPUMesh> m_meshes;
+    std::vector<GPUMesh> m_ufoMeshes;
+    std::vector<GPUMesh> m_baseMeshes;
     Texture              m_terrainTexture;
     bool                 m_useMaterial{true};
-    glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
+    glm::vec3            m_meshPosition{0.0f, 1.5f, 0.0f};
     glm::vec3            m_meshRotation{0.0f, 0.0f, 0.0f};
+
+    unsigned int m_cubemapTex;
+    unsigned int m_skyboxVAO;
+    unsigned int m_cubemapVAO;
+    float        m_skyboxRotation = 0.0f;
 
     // Lights
     struct Light
@@ -345,7 +438,7 @@ class Application
         glm::vec3 position;
         glm::vec3 color;
     };
-    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 5.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
+    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 10.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
     size_t             m_selectedLight = 0;
 
     // Viewpoints
