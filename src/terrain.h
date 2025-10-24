@@ -11,7 +11,7 @@ class TerrainParameters
     int   subdivisions   = 100;
     float tileSize       = 50.0f;
     int   renderDistance = 3;
-    float textureScale   = 5.0f;
+    float textureScale   = 1.0f;
 };
 
 class Terrain

@@ -1,5 +1,7 @@
 #include "texture.h"
 #include <framework/disable_all_warnings.h>
+
+#include "stb/stb_image.h"
 DISABLE_WARNINGS_PUSH()
 #include <fmt/format.h>
 DISABLE_WARNINGS_POP()

@@ -10,7 +10,7 @@
 ## Group Members and Work Division
 
 | Student Name      | Implemented Features   | Percentage Indication per Feature |
-| ----------------- | ---------------------- | --------------------------------- |
+|-------------------|------------------------|-----------------------------------|
 | Darian Samsoedien | - Basic Shading        | 5%                                |
 |                   | - Material textures UI | 5%                                |
 |                   | - Light added          | 1%                                |
@@ -29,12 +29,12 @@ animation, and procedural effects.
 
 Below is an overview of all implemented features and where they can be toggled in the UI.
 
-| ID  | Feature             | Description                                   | ImgUi                | Hotkey  | Time spent |
-| --- | ------------------- | --------------------------------------------- | -------------------- | ------- | ---------- |
-| F1  | Multiple viewpoints | Switching between world view and object view. | Dropdown: Viewpoint  | 1/2     | 3h         |
-| F2  | Basic shading:      | Diffuse-only per-fragment shading (uses Kd).  | Dropdown: Shading    | 3/4/5/6 | 2h         |
-| F3  | Material controls   | Kd,Ks,Shininess,Roughness                     | Colorpickers,sliders | —       | 0.5h       |
-| F4  | One point light     | Editable position and color                   | Sliders              | —       | 0.5h       |
+| ID | Feature             | Description                                   | ImgUi                | Hotkey  | Time spent |
+|----|---------------------|-----------------------------------------------|----------------------|---------|------------|
+| F1 | Multiple viewpoints | Switching between world view and object view. | Dropdown: Viewpoint  | 1/2     | 3h         |
+| F2 | Basic shading:      | Diffuse-only per-fragment shading (uses Kd).  | Dropdown: Shading    | 3/4/5/6 | 2h         |
+| F3 | Material controls   | Kd,Ks,Shininess,Roughness                     | Colorpickers,sliders | —       | 0.5h       |
+| F4 | One point light     | Editable position and color                   | Sliders              | —       | 0.5h       |
 
 ### F1. Multiple viewpoints
 
@@ -77,6 +77,11 @@ Single point light used by all basic shading modes. Position and color are edita
 **Implementation notes:**
 
 TODO: add screenshots
+
+### F5. Environmental mapping
+
+https://tools.wwwtyro.net/space-3d/index.html#animationSpeed=0&fov=127.09417040358746&nebulae=true&pointStars=true&resolution=1024&seed=77jttzgu2gow&stars=true&sun=true
+https://sketchfab.com/3d-models/mars-base-2bc6660c63b24158bdded20ff5d2235e
 
 ---
 

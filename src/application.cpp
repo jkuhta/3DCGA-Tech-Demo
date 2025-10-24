@@ -6,6 +6,7 @@
 #include <framework/disable_all_warnings.h>
 
 #include "camera.h"
+#include "stb/stb_image.h"
 #include "terrain.h"
 DISABLE_WARNINGS_PUSH()
 #include <glad/glad.h>
@@ -30,7 +31,7 @@ class Application
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41),
           m_terrainTexture(RESOURCE_ROOT "resources/terrain/Ground050/Ground050_2K-JPG_Color.jpg"),
-          m_worldCamera(&m_window, glm::vec3(1.2f, 1.1f, 0.9f), -glm::vec3(1.2f, 0.6f, 0.9f)),
+          m_worldCamera(&m_window, glm::vec3(-6.0f, 2.5f, 2.5f), -glm::vec3(-3.5f, 0.5f, 2.0f)),
           m_objectCamera(&m_window, glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
           m_activeCamera(&m_worldCamera),
           m_terrain(m_terrainParameters)
@@ -58,6 +59,12 @@ class Application
         m_ufoMeshes  = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/ufo/flying_Disk_flying.obj", true);
         m_baseMeshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/environment/MarsBase.obj");
 
+        std::vector<std::string> faces = {"resources/cubemap/right.png", "resources/cubemap/left.png",
+                                          "resources/cubemap/top.png",   "resources/cubemap/bottom.png",
+                                          "resources/cubemap/front.png", "resources/cubemap/back.png"};
+
+        m_cubemapTex = loadCubemap(faces);
+
         m_objectCamera.setFollowTarget(&m_meshPosition, &m_meshRotation);
 
         try
@@ -76,6 +83,11 @@ class Application
             litBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shader_vert.glsl");
             litBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shader_lit_frag.glsl");
             m_litShader = litBuilder.build();
+
+            ShaderBuilder skyboxBuilder;
+            skyboxBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/skybox_vert.glsl");
+            skyboxBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/skybox_frag.glsl");
+            m_skyboxShader = skyboxBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
             // ==> Don't forget to reconfigure CMake when you do!
@@ -120,6 +132,34 @@ class Application
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
+            glDepthMask(GL_FALSE);
+            m_skyboxShader.bind();
+            m_skyboxRotation += 0.01f;
+
+            // Get view matrix without translation
+            glm::mat4 view = glm::mat4(glm::mat3(m_activeCamera->viewMatrix()));
+
+            // Rotate around Y axis
+            glm::mat4 rotation =
+                glm::rotate(glm::mat4(1.0f), glm::radians(m_skyboxRotation), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            view = view * rotation;
+            // Upload uniforms
+            glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE, glm::value_ptr(view));
+            glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE,
+                               glm::value_ptr(m_projectionMatrix));
+            glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 0);
+
+            // Bind and draw
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
+
+            glBindVertexArray(m_skyboxVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glBindVertexArray(0);
+
+            glDepthMask(GL_TRUE);
+
             // Render all UFO meshes
             for (GPUMesh& mesh : m_ufoMeshes)
             {
@@ -132,6 +172,7 @@ class Application
 
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glUniform1i(m_skyboxShader.getUniformLocation("skybox"), 0);
 
                 if (mesh.hasTextureCoords())
                 {
@@ -281,7 +322,7 @@ class Application
             m_meshRotation.y -= rotateSpeed;
         if (m_window.isKeyPressed(GLFW_KEY_SPACE))
             m_meshPosition.y += objectSpeed;
-        else if (m_meshPosition.y > 0.5f)
+        else if (m_meshPosition.y > 1.5f)
             m_meshPosition.y -= objectSpeed;
     }
 
@@ -350,6 +391,75 @@ class Application
         glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
     }
 
+    unsigned int loadCubemap(std::vector<std::string> faces)
+    {
+        unsigned int textureID;
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+        int width, height, nrChannels;
+        for (unsigned int i = 0; i < faces.size(); i++)
+        {
+            unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+            if (data)
+            {
+                int format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE,
+                             data);
+
+                stbi_image_free(data);
+            }
+            else
+            {
+                std::cout << "Cubemap tex failed to load at path: " << faces[i] << std::endl;
+                stbi_image_free(data);
+            }
+        }
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        unsigned int skyboxVBO;
+
+        float skyboxVertices[] = {// positions
+                                  -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f,
+                                  1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f,
+
+                                  -1.0f, -1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
+                                  -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f, 1.0f,
+
+                                  1.0f,  -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,
+                                  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f,
+
+                                  -1.0f, -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+                                  1.0f,  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f, -1.0f, 1.0f,
+
+                                  -1.0f, 1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  1.0f,
+                                  1.0f,  1.0f,  1.0f,  -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f,  -1.0f,
+
+                                  -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, -1.0f,
+                                  1.0f,  -1.0f, -1.0f, -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f, 1.0f};
+
+        glGenVertexArrays(1, &m_skyboxVAO);
+        glGenBuffers(1, &skyboxVBO);
+
+        glBindVertexArray(m_skyboxVAO);
+
+        // vertex buffer
+        glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices, GL_STATIC_DRAW);
+
+        // attribute layout
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+        glBindVertexArray(0);
+
+        return textureID;
+    }
+
    private:
     Window m_window;
 
@@ -361,14 +471,19 @@ class Application
     Shader m_defaultShader;
     Shader m_shadowShader;
     Shader m_litShader;
+    Shader m_skyboxShader;
     int    m_shadingMode = 0;
 
     std::vector<GPUMesh> m_ufoMeshes;
     std::vector<GPUMesh> m_baseMeshes;
     Texture              m_terrainTexture;
     bool                 m_useMaterial{true};
-    glm::vec3            m_meshPosition{0.0f, 0.5f, 0.0f};
+    glm::vec3            m_meshPosition{0.0f, 1.5f, 0.0f};
     glm::vec3            m_meshRotation{0.0f, 0.0f, 0.0f};
+
+    unsigned int m_cubemapTex;
+    unsigned int m_skyboxVAO;
+    float        m_skyboxRotation = 0.0f;
 
     // Lights
     struct Light

@@ -7,6 +7,7 @@ Ke 0 0 0
 Ni 1.45
 d 1
 illum 2
+map_Kd textures/SolarCell.png
 
 newmtl White_Hull
 Ns 250
@@ -17,6 +18,7 @@ Ke 0 0 0
 Ni 1.45
 d 1
 illum 2
+map_Kd textures/White_Metal.png
 
 newmtl black
 Ns 150
@@ -35,7 +37,7 @@ Kd 0.4 0.6 0.7
 Ks 1.0 1.0 1.0
 Ke 0 0 0
 Ni 1.55
-d 0.7
+d 0.2
 illum 3
 
 newmtl glass

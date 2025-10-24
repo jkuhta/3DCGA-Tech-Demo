@@ -21,6 +21,9 @@ uniform bool hasTexCoords;
 uniform bool useMaterial;
 uniform int  shadingMode;// 0=Default, 1=Lambert, 2=Phong, 3=Blinn
 
+uniform samplerCube skybox;
+
+
 layout(location = 0) out vec4 fragColor;
 
 const float PI = 3.14159265359;
@@ -112,6 +115,10 @@ void main() {
     }
 
     color *= lightColor;
+
+    //    vec3 I = normalize(fragPosition - viewPos);
+    //    vec3 R = reflect(I, normalize(fragNormal));
+    //    color *= vec3(texture(skybox, R).rgb);
 
     if (hasTexCoords || useMaterial) { fragColor = vec4(clamp(color, 0.0, 1.0), transparency); }
     else { fragColor = vec4(normal, 1); }

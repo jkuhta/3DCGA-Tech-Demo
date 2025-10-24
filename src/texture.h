@@ -25,6 +25,8 @@ class Texture
 
     void bind(GLint textureSlot);
 
+    unsigned int loadCubemap(std::vector<std::string> faces);
+
    private:
     static constexpr GLuint INVALID = 0xFFFFFFFF;
     GLuint                  m_texture{INVALID};
