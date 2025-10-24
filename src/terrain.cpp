@@ -87,7 +87,7 @@ GPUMesh Terrain::createTileMesh(int gridX, int gridZ)
     }
 
     mesh.material.kd        = glm::vec3(0.8f, 0.8f, 0.8f);
-    mesh.material.ks        = glm::vec3(0.1f, 0.1f, 0.1f);
+    mesh.material.ks        = glm::vec3(0.04f, 0.04f, 0.04f);
     mesh.material.shininess = 8.0f;
     return GPUMesh(mesh);
 }
