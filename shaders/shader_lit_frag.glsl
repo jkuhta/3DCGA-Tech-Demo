@@ -2,6 +2,7 @@
 in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
+in mat3 fragTBN;
 
 layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh.h
 {
@@ -12,6 +13,11 @@ layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh
     float roughness;
     float metallic;
 };
+
+uniform bool useNormalMap;
+uniform sampler2D normalMap;
+uniform float normalStrength; 
+uniform bool normalFlipY; 
 
 uniform samplerCube skybox;
 uniform mat4 skyboxRotation;
@@ -31,6 +37,13 @@ const float PI = 3.14159265359;
 
 vec3 computeAlbedo() {
     return (hasTexCoords && !useMaterial) ? texture(colorMap, fragTexCoord).rgb : kd;
+}
+
+vec3 mapNormal() {
+    vec3 n = texture(normalMap, fragTexCoord).rgb * 2.0 - 1.0;
+    if (normalFlipY) n.g = -n.g;
+    n = normalize(mix(vec3(0,0,1), n, normalStrength));
+    return normalize(fragTBN * n);
 }
 
 float lambertTerm(vec3 n, vec3 l) {
@@ -74,6 +87,9 @@ vec3 reflection(vec3 n, vec3 i) {
 
 void main() {
     vec3 normal  = normalize(fragNormal);
+
+    if (useNormalMap && hasTexCoords)
+        normal = mapNormal();
     vec3 lightDir= normalize(lightPos - fragPosition);
     vec3 viewDir = normalize(viewPos  - fragPosition);
 
