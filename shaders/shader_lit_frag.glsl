@@ -105,7 +105,7 @@ void main() {
         vec3 spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
         vec3 Lo   = (kD * albedo / PI + spec) * NdotL;
 
-        vec3 ambient = albedo * 0.03; 
+        vec3 ambient = albedo * 0.15; 
         color = ambient + Lo;
     } else {
         color = normal;
