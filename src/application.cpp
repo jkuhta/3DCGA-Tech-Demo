@@ -282,8 +282,8 @@ class Application
         ImGui::Separator();
 
         ImGui::Text("Shading");
-        const char* modes[] = {"Default", "Albedo", "Lambert", "Phong", "Blinn-Phong"};
-        ImGui::Combo("Mode", &m_shadingMode, modes, 5);
+        const char* modes[] = {"Default", "Albedo", "Lambert", "Phong", "Blinn-Phong", "PBR"};
+        ImGui::Combo("Mode", &m_shadingMode, modes, 6);
         ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
 
         ImGui::Separator();
@@ -361,21 +361,6 @@ class Application
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
     glm::mat4 m_viewMatrix       = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix{1.0f};
-
-    // Shading parameters
-    struct
-    {
-        // Diffuse (Lambert)
-        glm::vec3 kd{0.5f};
-        // Specular (Phong/Blinn Phong)
-        glm::vec3 ks{0.5f};
-        float     shininess = 3.0f;
-        float     roughness = 0.5f;
-        // Toon
-        int   toonDiscretize        = 4;
-        float toonSpecularThreshold = 0.49f;
-
-    } shadingData;
 };
 
 int main()
