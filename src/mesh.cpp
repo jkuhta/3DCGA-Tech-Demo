@@ -6,9 +6,25 @@ DISABLE_WARNINGS_POP()
 #include <iostream>
 #include <vector>
 
+static inline float derive_roughness_from_Ns(float Ns)
+{
+    // Option 2 (physically nicer)
+    float r = std::sqrt(2.0f / (Ns + 2.0f));
+    return std::clamp(r, 0.04f, 1.0f);
+}
+static inline float derive_metallic_from_KsKd(const glm::vec3& Ks, const glm::vec3& Kd)
+{
+    float avgKs = (Ks.x + Ks.y + Ks.z) / 3.0f;
+    float avgKd = (Kd.x + Kd.y + Kd.z) / 3.0f;
+    float m     = ((avgKs - 0.04f) / 0.96f) * (1.0f - avgKd);
+    return std::clamp(m, 0.0f, 1.0f);
+}
+
 GPUMaterial::GPUMaterial(const Material& material)
     : kd(material.kd), ks(material.ks), shininess(material.shininess), transparency(material.transparency)
 {
+    roughness = derive_roughness_from_Ns(material.shininess);
+    metallic  = derive_metallic_from_KsKd(material.ks, material.kd);
 }
 
 GPUMesh::GPUMesh(const Mesh& cpuMesh)

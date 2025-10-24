@@ -6,6 +6,8 @@ layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh
     vec3 ks;
     float shininess;
     float transparency;
+    float roughness;
+    float metallic;
 };
 
 uniform sampler2D colorMap;
