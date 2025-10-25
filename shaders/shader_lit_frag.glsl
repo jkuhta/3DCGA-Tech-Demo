@@ -16,20 +16,25 @@ layout(std140) uniform Material// Must match the GPUMaterial defined in src/mesh
 
 uniform bool useNormalMap;
 uniform sampler2D normalMap;
-uniform float normalStrength; 
-uniform bool normalFlipY; 
+uniform float normalStrength;
+uniform bool normalFlipY;
 
 uniform samplerCube skybox;
 uniform mat4 skyboxRotation;
 uniform bool useEnvironmentalMapping;
 
-uniform vec3 lightPos, lightColor;
-uniform mat4 lightMVP;
+struct Light {
+    vec3 position;
+    vec3 color;
+};
 
-uniform sampler2D texShadow;
-uniform float offset = 0.0001;
-uniform int kernelSize = 5;
+#define NR_POINT_LIGHTS 2
+uniform Light lights[NR_POINT_LIGHTS];
+uniform mat4 lightMVP[NR_POINT_LIGHTS];
+
 uniform bool useShadows;
+uniform sampler2D texShadow[NR_POINT_LIGHTS];
+uniform float offset = 0.0001;
 
 uniform vec3 viewPos;
 uniform bool useDiffuse;
@@ -49,7 +54,7 @@ vec3 computeAlbedo() {
 vec3 mapNormal() {
     vec3 n = texture(normalMap, fragTexCoord).rgb * 2.0 - 1.0;
     if (normalFlipY) n.g = -n.g;
-    n = normalize(mix(vec3(0,0,1), n, normalStrength));
+    n = normalize(mix(vec3(0, 0, 1), n, normalStrength));
     return normalize(fragTBN * n);
 }
 
@@ -92,11 +97,11 @@ vec3 reflection(vec3 n, vec3 i) {
     return texture(skybox, rotatedR).rgb;
 }
 
-float shadow(vec3 normal)
+float shadow(vec3 normal, int lightIndex)
 {
     if (!useShadows) return 1.0;
 
-    vec4 fragLightCoord = lightMVP * vec4(fragPosition, 1.0);
+    vec4 fragLightCoord = lightMVP[lightIndex] * vec4(fragPosition, 1.0);
     fragLightCoord.xyz /= fragLightCoord.w;
     fragLightCoord.xyz = fragLightCoord.xyz * 0.5 + 0.5;
 
@@ -104,81 +109,91 @@ float shadow(vec3 normal)
     return 1.0;
 
     float fragDepth = fragLightCoord.z;
-    float texelSize = 1.0 / 1024.0;
-    float bias = max(offset * (1.0 - dot(normal, vec3(0.0))), 0.0005);
 
-    float shadowSum = 0.0;
-    int samples = 0;
-
-    for (int x = -kernelSize; x <= kernelSize; ++x) {
-        for (int y = -kernelSize; y <= kernelSize; ++y) {
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(texShadow[lightIndex], 0);
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
             vec2 coord = fragLightCoord.xy + vec2(x, y) * texelSize;
-            float closestDepth = texture(texShadow, coord).r;
-            shadowSum += (fragDepth - bias <= closestDepth) ? 1.0 : 0.0;
-            samples++;
+            float pcfDepth = texture(texShadow[lightIndex], coord).r;
+            shadow += fragDepth - offset < pcfDepth ? 1.0 : 0.0;
         }
     }
 
-    return shadowSum / float(samples);
+    return shadow / 9.0;
 }
 
 void main() {
-    vec3 normal  = normalize(fragNormal);
+    vec3 normal = normalize(fragNormal);
 
     if (useNormalMap && hasTexCoords)
-        normal = mapNormal();
-    vec3 lightDir= normalize(lightPos - fragPosition);
-    vec3 viewDir = normalize(viewPos  - fragPosition);
+    normal = mapNormal();
+    vec3 viewDir = normalize(viewPos - fragPosition);
+    vec3 albedo = computeAlbedo();
 
-    vec3  albedo = computeAlbedo();
-    float diff = lambertTerm(normal, lightDir);
-    float blinnSpec = blinnSpecular(normal, lightDir, viewDir, shininess);
+    vec3 finalColor = vec3(0.0);
 
-    vec3 color = vec3(0.0);
+    // Loop over all point lights
+    for (int i = 0; i < NR_POINT_LIGHTS; ++i) {
+        vec3 lightDir = normalize(lights[i].position - fragPosition);
+        float diff = lambertTerm(normal, lightDir);
+        float blinnSpec = blinnSpecular(normal, lightDir, viewDir, shininess);
 
-    if (shadingMode == 0) { // Default (Lambert + BlinnPhong)
-        color = albedo * diff + ks * blinnSpec;
-    } else if (shadingMode == 1) { // Albedo
-        color = albedo;
-    } else if (shadingMode == 2) { // Lambert
-        color = albedo * diff;
-    } else if (shadingMode == 3) { // Phong
-        if (useDiffuse) color += albedo * diff;
-        color += ks * phongSpecular(normal, lightDir, viewDir, shininess);
-    } else if (shadingMode == 4){ // Blinn-Phong
-        if (useDiffuse) color += albedo * diff;
-        color += ks * blinnSpec;
-    } else if (shadingMode == 5){ // PBR (GGX)
-        float r = clamp(roughness, 0.04, 1.0);
-        float m = clamp(metallic, 0.0, 1.0);
+        vec3 color = vec3(0.0);
 
-        vec3  halfVec = normalize(viewDir + lightDir);
-        float NdotL = max(dot(normal, lightDir), 0.0);
-        float NdotV = max(dot(normal, viewDir), 0.0);
-        float NdotH = max(dot(normal, halfVec), 0.0);
-        float HdotV = max(dot(halfVec, viewDir), 0.0);
+        if (shadingMode == 0) { // Default (Lambert + BlinnPhong)
+            color = albedo * diff + ks * blinnSpec;
+        } else if (shadingMode == 1) { // Albedo
+            color = albedo;
+        } else if (shadingMode == 2) { // Lambert
+            color = albedo * diff;
+        } else if (shadingMode == 3) { // Phong
+            if (useDiffuse) color += albedo * diff;
+            color += ks * phongSpecular(normal, lightDir, viewDir, shininess);
+        } else if (shadingMode == 4) { // Blinn-Phong
+            if (useDiffuse) color += albedo * diff;
+            color += ks * blinnSpec;
+        } else if (shadingMode == 5) { // PBR (GGX)
+            float r = clamp(roughness, 0.04, 1.0);
+            float m = clamp(metallic, 0.0, 1.0);
 
-        vec3  F0 = mix(vec3(0.04), albedo, m);
-        float D  = D_GGX(NdotH, r);
-        float G  = G_Smith(NdotV, NdotL, r);
-        vec3  F  = F_Schlick(HdotV, F0);
+            vec3 halfVec = normalize(viewDir + lightDir);
+            float NdotL = max(dot(normal, lightDir), 0.0);
+            float NdotV = max(dot(normal, viewDir), 0.0);
+            float NdotH = max(dot(normal, halfVec), 0.0);
+            float HdotV = max(dot(halfVec, viewDir), 0.0);
 
-        vec3 kS = F;
-        vec3 kD = (1.0 - kS) * (1.0 - m);
+            vec3 F0 = mix(vec3(0.04), albedo, m);
+            float D = D_GGX(NdotH, r);
+            float G = G_Smith(NdotV, NdotL, r);
+            vec3 F = F_Schlick(HdotV, F0);
 
-        vec3 spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
-        vec3 Lo   = (kD * albedo / PI + spec)  * NdotL;
+            vec3 kS = F;
+            vec3 kD = (1.0 - kS) * (1.0 - m);
 
-        vec3 ambient = albedo * 0.15;
-        color = ambient + Lo;// TODO - something not good, pbr is too dark
-    } else {
-        color = normal;
+            vec3 spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
+            vec3 Lo = (kD * albedo / PI + spec)  * NdotL;
+
+            vec3 ambient = albedo * 0.15;
+            color = ambient + Lo;// TODO - something not good, pbr is too dark
+        } else {
+            color = normal;
+        }
+
+        color *= lights[i].color;
+
+        if (useShadows) {
+            color *= shadow(normal, i);
+        }
+
+
+        finalColor += color * 0.5;
     }
 
-    if (useEnvironmentalMapping) color += reflection(normal, -viewDir) * ks * 0.5;// TODO - should use proper reflection parameter instead of ks + add refraction
+    if (useEnvironmentalMapping) finalColor += reflection(normal, -viewDir) * ks * 0.5;// TODO - should use proper reflection parameter instead of ks + add refraction
 
-    color *= lightColor * shadow(normal);
-
-    if (hasTexCoords || useMaterial) { fragColor = vec4(clamp(color, 0.0, 1.0), transparency); }
+    if (hasTexCoords || useMaterial) { fragColor = vec4(clamp(finalColor, 0.0, 1.0), transparency); }
     else { fragColor = vec4(normal, 1); }
 }
