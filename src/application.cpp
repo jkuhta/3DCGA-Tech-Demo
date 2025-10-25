@@ -100,6 +100,32 @@ class Application
         {
             std::cerr << e.what() << std::endl;
         }
+
+        for (int i = 0; i < 2; ++i)
+        {
+            glGenFramebuffers(1, &m_framebuffers[i]);
+            glGenTextures(1, &m_shadowTextures[i]);
+
+            glBindTexture(GL_TEXTURE_2D, m_shadowTextures[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, m_shadowWidth, m_shadowWidth, 0, GL_DEPTH_COMPONENT,
+                         GL_FLOAT, nullptr);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+            float borderColor[] = {1.0, 1.0, 1.0, 1.0};
+            glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffers[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowTextures[i], 0);
+            glDrawBuffer(GL_NONE);
+            glReadBuffer(GL_NONE);
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            {
+                std::cerr << "ERROR: Shadow framebuffer " << i << " is not complete!" << std::endl;
+            }
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
     }
 
     void update()
@@ -130,34 +156,86 @@ class Application
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
+            glBlendFunc(GL_ONE, GL_ONE);
 
             if (m_wire_frame_enabled)
             {
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // * this renders the triangles as wireframe
             }
 
+            // --- Calculate lightSpace matrices
+            for (int lightIndex = 0; lightIndex < 2; lightIndex++)
+            {
+                glm::mat4 lightProjection = glm::perspective(glm::radians(60.0f), 1.0f, 1.0f, 50.0f);
+                glm::mat4 lightView = glm::lookAt(m_lights[lightIndex].position, glm::vec3(0.0f), glm::vec3(0, 1, 0));
+                m_lightSpaceMatrices[lightIndex] = lightProjection * lightView;
+            }
+
+            // --- Perform shadow passes for each light ---
+            glCullFace(GL_FRONT);
+            glEnable(GL_DEPTH_TEST);
+
+            for (int lightIndex = 0; lightIndex < 2; lightIndex++)
+            {
+                glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffers[lightIndex]);
+                glViewport(0, 0, m_shadowWidth, m_shadowWidth);
+                glClearDepth(1.0);
+                glClear(GL_DEPTH_BUFFER_BIT);
+
+                m_shadowShader.bind();
+
+                // Render shadow map for static environment meshes
+                for (auto& mesh : m_baseMeshes)
+                {
+                    glm::mat4 model    = m_modelMatrix;  // or however you compute it
+                    glm::mat4 lightMVP = m_lightSpaceMatrices[lightIndex] * model;
+                    glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
+                                       glm::value_ptr(lightMVP));
+                    glBindVertexArray(mesh.getVAO());
+                    mesh.draw(m_shadowShader, false);
+                }
+
+                // Render shadow map for moving UFO meshes
+                for (auto& mesh : m_ufoMeshes)
+                {
+                    glm::mat4 model    = glm::rotate(glm::translate(m_modelMatrix, m_meshPosition), m_meshRotation.y,
+                                                     glm::vec3(0, 1, 0));
+                    glm::mat4 lightMVP = m_lightSpaceMatrices[lightIndex] * model;
+                    glUniformMatrix4fv(m_shadowShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE,
+                                       glm::value_ptr(lightMVP));
+                    glBindVertexArray(mesh.getVAO());
+                    mesh.draw(m_shadowShader, false);
+                }
+
+                glBindVertexArray(0);
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            }
+            glCullFace(GL_BACK);
+            glViewport(0, 0, m_window.getWindowSize().x, m_window.getWindowSize().y);
+            glClearColor(0.4f, 0.4f, 0.5f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
             // Render all UFO meshes
             for (GPUMesh& mesh : m_ufoMeshes)
             {
-                glm::mat4 modelMatrix       = glm::translate(m_modelMatrix, m_meshPosition);
-                modelMatrix                 = glm::rotate(modelMatrix, m_meshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * modelMatrix;
-                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(modelMatrix));
-
-                bindAndSetup(m_litShader, mvpMatrix, modelMatrix, normalModelMatrix);
+                glm::mat4 model =
+                    glm::rotate(glm::translate(m_modelMatrix, m_meshPosition), m_meshRotation.y, glm::vec3(0, 1, 0));
+                glm::mat4 mvpMatrix         = m_projectionMatrix * m_activeCamera->viewMatrix() * model;
+                glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(model));
+                bindAndSetup(m_litShader, mvpMatrix, model, normalModelMatrix);
 
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                glActiveTexture(GL_TEXTURE1);
+                glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
-                glUniform1i(m_litShader.getUniformLocation("skybox"), 1);
+                glUniform1i(m_litShader.getUniformLocation("skybox"), 0);
                 glUniformMatrix4fv(m_litShader.getUniformLocation("skyboxRotation"), 1, GL_FALSE,
                                    glm::value_ptr(skyboxRotation));
 
                 if (mesh.hasTextureCoords())
                 {
-                    m_terrainTexture.bind(
-                        GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
+                    // m_terrainTexture.bind(
+                    //     GL_TEXTURE0);  // TODO this has to be fixed -> meshes can get textures from .mtl
                     glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
@@ -183,9 +261,9 @@ class Application
                 glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
                 bindAndSetup(m_litShader, mvpMatrix, m_modelMatrix, normalModelMatrix);
-                glActiveTexture(GL_TEXTURE1);
+                glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, m_cubemapTex);
-                glUniform1i(m_litShader.getUniformLocation("skybox"), 1);
+                glUniform1i(m_litShader.getUniformLocation("skybox"), 0);
                 glUniformMatrix4fv(m_litShader.getUniformLocation("skyboxRotation"), 1, GL_FALSE,
                                    glm::value_ptr(skyboxRotation));
 
@@ -220,8 +298,8 @@ class Application
 
                 if (m_useTexture)
                 {
-                    m_terrainTexture.bind(GL_TEXTURE0);
-                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 0);
+                    m_terrainTexture.bind(GL_TEXTURE2);
+                    glUniform1i(m_litShader.getUniformLocation("colorMap"), 2);
                     glUniform1i(m_litShader.getUniformLocation("hasTexCoords"), GL_TRUE);
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), GL_FALSE);
                 }
@@ -235,8 +313,8 @@ class Application
                 glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_TRUE);
                 if (m_useNormalMap)
                 {
-                    m_terrainNormal.bind(GL_TEXTURE2);
-                    glUniform1i(m_litShader.getUniformLocation("normalMap"), 2);
+                    m_terrainNormal.bind(GL_TEXTURE3);
+                    glUniform1i(m_litShader.getUniformLocation("normalMap"), 3);
                     glUniform1f(m_litShader.getUniformLocation("normalStrength"), m_normalStrength);
                     glUniform1i(m_litShader.getUniformLocation("normalFlipY"), m_normalFlipY);
                 }
@@ -277,6 +355,13 @@ class Application
             // Processes input and swaps the window buffer
             m_window.swapBuffers();
         }
+
+        for (int i = 0; i < 2; ++i)
+        {
+            glDeleteFramebuffers(1, &m_framebuffers[i]);
+            glDeleteTextures(1, &m_shadowTextures[i]);
+        }
+        glDeleteVertexArrays(1, &m_skyboxVAO);
     }
 
     // In here you can handle key presses
@@ -375,9 +460,10 @@ class Application
         ImGui::Separator();
 
         ImGui::Text("Lights");
-        auto& L = m_lights[m_selectedLight];  // one light for now
-        ImGui::DragFloat3("Light pos", &L.position[0], 0.05f);
-        ImGui::ColorEdit3("Light color", &L.color[0]);
+        ImGui::DragFloat3("Light pos", &m_lights[0].position[0], 0.05f);
+        ImGui::ColorEdit3("Light color", &m_lights[0].color[0]);
+        ImGui::DragFloat3("Light 2 pos", &m_lights[1].position[0], 0.05f);
+        ImGui::ColorEdit3("Light 2 color", &m_lights[1].color[0]);
         ImGui::Separator();
 
         ImGui::Text("Shading");
@@ -386,6 +472,7 @@ class Application
         ImGui::Checkbox("Add Diffuse", &m_useDiffuseInSpecular);
         ImGui::Checkbox("Use Environmental Mapping", &m_useEnvironmentalMapping);
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+        ImGui::Checkbox("Use Shadows", &m_useShadows);
 
         ImGui::Separator();
         ImGui::Text("Normal Mapping Terrain");
@@ -417,12 +504,25 @@ class Application
         glUniformMatrix4fv(sh.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix3fv(sh.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normal));
 
-        const Light& L = m_lights[0];
-        glUniform3fv(sh.getUniformLocation("lightPos"), 1, glm::value_ptr(L.position));
-        glUniform3fv(sh.getUniformLocation("lightColor"), 1, glm::value_ptr(L.color));
+        for (int lightIndex = 0; lightIndex < 2; lightIndex++)
+        {
+            glm::mat4 lightMVP = m_lightSpaceMatrices[lightIndex];
 
+            glUniform3fv(sh.getUniformLocation("lights[" + std::to_string(lightIndex) + "].position"), 1,
+                         glm::value_ptr(m_lights[lightIndex].position));
+            glUniform3fv(sh.getUniformLocation("lights[" + std::to_string(lightIndex) + "].color"), 1,
+                         glm::value_ptr(m_lights[lightIndex].color));
+            glUniformMatrix4fv(sh.getUniformLocation("lightMVP[" + std::to_string(lightIndex) + "]"), 1, GL_FALSE,
+                               glm::value_ptr(lightMVP));
+
+            glActiveTexture(GL_TEXTURE0 + lightIndex + 4);
+            glBindTexture(GL_TEXTURE_2D, m_shadowTextures[lightIndex]);
+            glUniform1i(sh.getUniformLocation("texShadow[" + std::to_string(lightIndex) + "]"), lightIndex + 4);
+        }
+        // Other uniforms
         glUniform1i(sh.getUniformLocation("shadingMode"), m_shadingMode);
         glUniform1i(sh.getUniformLocation("useDiffuse"), m_useDiffuseInSpecular);
+        glUniform1i(sh.getUniformLocation("useShadows"), m_useShadows);
         glUniform3fv(sh.getUniformLocation("viewPos"), 1, glm::value_ptr(m_activeCamera->cameraPos()));
     }
 
@@ -440,6 +540,7 @@ class Application
     Shader m_litShader;
     Shader m_skyboxShader;
     int    m_shadingMode = 0;
+    Shader m_lightShader;
 
     std::vector<GPUMesh> m_ufoMeshes;
     std::vector<GPUMesh> m_baseMeshes;
@@ -458,9 +559,13 @@ class Application
     {
         glm::vec3 position;
         glm::vec3 color;
+        bool      is_spotlight;
+        glm::vec3 direction;
     };
-    std::vector<Light> m_lights        = {{glm::vec3(0.4f, 10.2f, 0.2f), glm::vec3(0.9f, 0.9f, 0.9f)}};
-    size_t             m_selectedLight = 0;
+    std::vector<Light> m_lights = {
+        {glm::vec3(0.4f, 20.2f, 10.2f), glm::vec3(0.77f, 1.0f, 0.90f), false, glm::vec3(0.0f, 0.0f, 0.0f)},
+        {glm::vec3(-20.4f, 15.2f, 20.2f), glm::vec3(0.95f, 0.78f, 0.97f), false, glm::vec3(0.0f, 0.0f, 0.0f)}};
+    glm::mat4 m_lightSpaceMatrices[2];
 
     // Viewpoints
     Camera  m_worldCamera;
@@ -477,9 +582,15 @@ class Application
     int     m_normalFlipY    = 0;
 
     // Projection and view matrices for you to fill in and use
-    glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
+    glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
     glm::mat4 m_viewMatrix       = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
     glm::mat4 m_modelMatrix{1.0f};
+
+    // Shadows
+    GLuint m_framebuffers[2];
+    GLuint m_shadowTextures[2];
+    int    m_shadowWidth = 4096;
+    bool   m_useShadows  = true;
 };
 
 int main()

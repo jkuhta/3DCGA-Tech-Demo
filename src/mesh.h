@@ -50,7 +50,9 @@ class GPUMesh
     bool hasTextureCoords() const;
 
     // Bind VAO and call glDrawElements.
-    void draw(const Shader& drawingShader);
+    void draw(const Shader& drawingShader, bool bindMaterial = true);
+
+    GLuint getVAO() const { return m_vao; }
 
    private:
     void moveInto(GPUMesh&&);
