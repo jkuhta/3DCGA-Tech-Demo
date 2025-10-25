@@ -168,6 +168,8 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
                 glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), m_useEnvironmentalMapping);
+                glUniform1i(m_litShader.getUniformLocation("useNormalMap"), GL_FALSE);
+                glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_FALSE);
 
                 mesh.draw(m_litShader);
 
@@ -201,6 +203,8 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
                 glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), m_useEnvironmentalMapping);
+                glUniform1i(m_litShader.getUniformLocation("useNormalMap"), GL_FALSE);
+                glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_FALSE);
 
                 mesh.draw(m_litShader);
 
@@ -227,6 +231,15 @@ class Application
                     glUniform1i(m_litShader.getUniformLocation("useMaterial"), m_useMaterial);
                 }
                 glUniform1i(m_litShader.getUniformLocation("useEnvironmentalMapping"), GL_FALSE);
+                glUniform1i(m_litShader.getUniformLocation("useNormalMap"), m_useNormalMap);
+                glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_TRUE);
+                if (m_useNormalMap)
+                {
+                    m_terrainNormal.bind(GL_TEXTURE2);
+                    glUniform1i(m_litShader.getUniformLocation("normalMap"), 2);
+                    glUniform1f(m_litShader.getUniformLocation("normalStrength"), m_normalStrength);
+                    glUniform1i(m_litShader.getUniformLocation("normalFlipY"), m_normalFlipY);
+                }
 
                 m_terrain.render(m_litShader);
             }
@@ -238,6 +251,8 @@ class Application
                 glDepthMask(GL_FALSE);
                 glDepthFunc(GL_LEQUAL);
                 m_skyboxShader.bind();
+                glUniform1i(m_litShader.getUniformLocation("useNormalMap"), GL_FALSE);
+                glUniform1i(m_litShader.getUniformLocation("hasTangents"), GL_FALSE);
                 glUniformMatrix4fv(m_skyboxShader.getUniformLocation("view"), 1, GL_FALSE, glm::value_ptr(skyboxView));
                 glUniformMatrix4fv(m_skyboxShader.getUniformLocation("projection"), 1, GL_FALSE,
                                    glm::value_ptr(m_projectionMatrix));
@@ -373,6 +388,12 @@ class Application
         ImGui::Checkbox("Use material if no texture", &m_useMaterial);
 
         ImGui::Separator();
+        ImGui::Text("Normal Mapping Terrain");
+        ImGui::Checkbox("Use Normal Map", &m_useNormalMap);
+        ImGui::SliderFloat("Normal Strength", &m_normalStrength, 0.0f, 2.0f);
+        ImGui::Checkbox("Flip Normal Y", reinterpret_cast<bool*>(&m_normalFlipY));
+
+        ImGui::Separator();
         ImGui::Text("Terrain");
         ImGui::Checkbox("Wireframe", &m_wire_frame_enabled);
         ImGui::Checkbox("Use Texture", &m_useTexture);
@@ -449,6 +470,11 @@ class Application
 
     TerrainParameters m_terrainParameters{100, 50.0f, 5};
     Terrain           m_terrain;
+
+    Texture m_terrainNormal{RESOURCE_ROOT "resources/terrain/Ground050/Ground050_2K-JPG_NormalGL.jpg"};
+    bool    m_useNormalMap   = true;
+    float   m_normalStrength = 1.0f;
+    int     m_normalFlipY    = 0;
 
     // Projection and view matrices for you to fill in and use
     glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);

@@ -2,6 +2,47 @@
 #include <cmath>
 #include <iostream>
 
+static void accumulateTangents(Mesh& mesh)
+{
+    for (auto& v : mesh.vertices)
+    {
+        v.tangent   = glm::vec3(0);
+        v.bitangent = glm::vec3(0);
+    }
+
+    for (auto& tri : mesh.triangles)
+    {
+        Vertex& v0 = mesh.vertices[tri[0]];
+        Vertex& v1 = mesh.vertices[tri[1]];
+        Vertex& v2 = mesh.vertices[tri[2]];
+
+        glm::vec3 p0 = v0.position, p1 = v1.position, p2 = v2.position;
+        glm::vec2 uv0 = v0.texCoord, uv1 = v1.texCoord, uv2 = v2.texCoord;
+
+        glm::vec3 dp1 = p1 - p0, dp2 = p2 - p0;
+        glm::vec2 duv1 = uv1 - uv0, duv2 = uv2 - uv0;
+
+        float     r = 1.0f / (duv1.x * duv2.y - duv1.y * duv2.x + 1e-20f);
+        glm::vec3 T = (dp1 * duv2.y - dp2 * duv1.y) * r;
+        glm::vec3 B = (dp2 * duv1.x - dp1 * duv2.x) * r;
+
+        v0.tangent += T;
+        v1.tangent += T;
+        v2.tangent += T;
+        v0.bitangent += B;
+        v1.bitangent += B;
+        v2.bitangent += B;
+    }
+    for (auto& v : mesh.vertices)
+    {
+        glm::vec3 n = glm::normalize(v.normal);
+        glm::vec3 t = glm::normalize(v.tangent - n * glm::dot(n, v.tangent));
+        glm::vec3 b = glm::normalize(glm::cross(n, t));
+        v.tangent   = t;
+        v.bitangent = b;
+    }
+}
+
 Terrain::Terrain(TerrainParameters params)
     : m_subdivisions(params.subdivisions),
       m_tileSize(params.tileSize),
@@ -85,6 +126,8 @@ GPUMesh Terrain::createTileMesh(int gridX, int gridZ)
             mesh.triangles.emplace_back(topRight, bottomLeft, bottomRight);
         }
     }
+
+    accumulateTangents(mesh);
 
     mesh.material.kd        = glm::vec3(0.8f, 0.8f, 0.8f);
     mesh.material.ks        = glm::vec3(0.04f, 0.04f, 0.04f);
